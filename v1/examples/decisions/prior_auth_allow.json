@@ -1,0 +1,193 @@
+{
+  "decision_id": "550e8400-e29b-41d4-a716-446655440000",
+  "decision": "ALLOW",
+  "timestamp": "2026-01-18T14:23:45.123Z",
+  "policy_id": "HIPAA_PRIOR_AUTH_001",
+  "policy_version": "1.1",
+  "matched_rules": [
+    {
+      "rule_id": "minimum_necessary_check",
+      "rule_name": "Verify data requested meets minimum necessary standard",
+      "outcome": "pass",
+      "reason": "Only 3 data elements requested vs 145 available in chart"
+    },
+    {
+      "rule_id": "identity_chain_complete",
+      "rule_name": "Verify complete identity chain present",
+      "outcome": "pass",
+      "reason": "User, role, agent, and system all validated"
+    },
+    {
+      "rule_id": "action_authorization",
+      "rule_name": "Verify requested actions are permitted",
+      "outcome": "pass",
+      "reason": "Draft prior auth request is allowed for this workflow"
+    }
+  ],
+  
+  "workflow_type": "prior_authorization",
+  "purpose": "Verify insurance coverage for prescribed GLP-1 agonist (Ozempic) for Type 2 diabetes management",
+  
+  "identity_chain": {
+    "user_id": "physician_npi_1234567890",
+    "user_role": "attending_physician",
+    "user_department": "endocrinology",
+    "agent_id": "claude-healthcare-instance-42",
+    "agent_version": "claude-sonnet-4-20250514",
+    "session_id": "sess_abc123def456",
+    "system_of_origin": "epic_ehr_prod",
+    "on_behalf_of": null
+  },
+  
+  "patient_context": {
+    "patient_id": "hash_4a3f9c2e1d8b7f6a",
+    "encounter_id": "enc_2026011812345",
+    "is_vip": false,
+    "is_sealed_record": false
+  },
+  
+  "requested_data": [
+    {
+      "field": "patient_demographics.age",
+      "scope": "current",
+      "justification": "Age-based formulary requirements"
+    },
+    {
+      "field": "diagnoses.primary_icd10",
+      "scope": "current",
+      "justification": "Verify medication is indicated for diagnosis"
+    },
+    {
+      "field": "medications.current_list",
+      "scope": "active_prescriptions_only",
+      "justification": "Check for drug interactions"
+    },
+    {
+      "field": "allergies.medication_allergies",
+      "scope": "all_active",
+      "justification": "Safety screening"
+    }
+  ],
+  
+  "released_data": [
+    {
+      "field": "patient_demographics.age",
+      "scope": "current",
+      "redaction_applied": false,
+      "authorization_rule": "permitted_data.patient_demographics.age"
+    },
+    {
+      "field": "diagnoses.primary_icd10",
+      "scope": "current",
+      "redaction_applied": false,
+      "authorization_rule": "permitted_data.clinical_information.primary_diagnosis"
+    },
+    {
+      "field": "medications.current_list",
+      "scope": "active_prescriptions_only",
+      "redaction_applied": false,
+      "authorization_rule": "permitted_data.clinical_information.current_medications"
+    },
+    {
+      "field": "allergies.medication_allergies",
+      "scope": "all_active",
+      "redaction_applied": false,
+      "authorization_rule": "permitted_data.clinical_information.allergies"
+    }
+  ],
+  
+  "blocked_data": [],
+  
+  "requested_actions": [
+    {
+      "action": "draft_prior_authorization",
+      "target": "prior_auth_document_system",
+      "parameters": {
+        "medication": "Ozempic 1mg weekly",
+        "diagnosis": "E11.9 - Type 2 diabetes mellitus without complications"
+      }
+    }
+  ],
+  
+  "allowed_actions": [
+    {
+      "action": "draft_prior_authorization",
+      "authorization_rule": "action_control.allowed_actions.draft_prior_auth_request",
+      "conditions": [
+        "Human must review draft before submission"
+      ]
+    }
+  ],
+  
+  "blocked_actions": [],
+  
+  "risk_assessment": {
+    "risk_tier": "MEDIUM",
+    "risk_factors": [
+      "Standard prior authorization workflow",
+      "No sensitive data categories accessed",
+      "Routine medication (on standard formulary)"
+    ],
+    "confidence_score": 0.95,
+    "confidence_method": "evidence_coverage",
+    "uncertainty_flags": []
+  },
+  
+  "human_gate": {
+    "required": false,
+    "reason": "Low-risk routine request, no approval triggers",
+    "outcome": "not_applicable"
+  },
+  
+  "evidence_refs": [
+    {
+      "claim": "Patient has Type 2 diabetes diagnosis",
+      "source": "problem_list.active[0].icd10 = E11.9",
+      "verified": true
+    },
+    {
+      "claim": "Ozempic is indicated for Type 2 diabetes",
+      "source": "drug_database.indications.ozempic = ['Type 2 diabetes']",
+      "verified": true
+    },
+    {
+      "claim": "No known drug interactions with current medications",
+      "source": "interaction_check.result = 'no_major_interactions'",
+      "verified": true
+    }
+  ],
+  
+  "hallucination_checks": {
+    "performed": true,
+    "unverified_statements": [],
+    "contradictions_detected": []
+  },
+  
+  "latency_ms": 87,
+  "guardrail_version": "1.0.0",
+  
+  "compliance_tags": [
+    "HIPAA_minimum_necessary",
+    "HIPAA_Privacy_Rule"
+  ],
+  
+  "audit_metadata": {
+    "retention_period_days": 2190,
+    "export_format": "json",
+    "digital_signature": "sha256:a3f9b2e8c1d4f6a7b9e2c4d8f3a1b5c7"
+  },
+  
+  "explanation": {
+    "summary": "ALLOWED: Physician request for routine prior authorization. AI accessed only necessary data (age, diagnosis, medications, allergies). No sensitive data. Standard workflow. Decision made in 87ms.",
+    
+    "full_narrative": "✅ **REQUEST ALLOWED**\n\nOn January 18, 2026 at 2:23 PM EST, Guardrail approved an AI request from Dr. Sarah Chen (attending_physician, NPI 1234567890) using claude-healthcare-instance-42 for prior_authorization.\n\n**What was allowed**:\nAccess to patient's age (58), current diabetes diagnosis (ICD-10: E11.9), active medications (metformin 1000mg BID), and drug allergies (penicillin) for coverage verification of Ozempic 1mg weekly.\n\n**Why it was allowed**:\n- Policy HIPAA_PRIOR_AUTH_001 permits this access for prior authorization workflows\n- Dr. Chen has appropriate role (attending_physician)\n- Data requested meets minimum necessary standard (only 4 data elements vs 145 available in chart)\n- Clinical justification provided: \"Verify coverage for GLP-1 agonist for Type 2 diabetes management\"\n- AI agent can draft prior auth document, but physician must review before submission\n\n**Compliance verification**:\n- ✓ HIPAA minimum necessary: Only essential data accessed\n- ✓ Identity chain complete: USER:physician_npi_1234567890 → ROLE:attending_physician → AGENT:claude-healthcare-42 → SOURCE:epic_ehr_prod\n- ✓ Purpose documented: Prior authorization for prescribed medication\n- ✓ Evidence verified: All AI claims supported by EHR data\n\n**Next steps**:\nAI will draft prior authorization request. Dr. Chen must review and approve before submission to payer.\n\n**Audit trail**: Decision ID 550e8400-e29b-41d4-a716-446655440000",
+    
+    "audience_versions": {
+      "compliance_officer": "Standard prior auth request approved. Minimum necessary compliance verified (4 elements accessed vs 145 available). No policy violations. Complete audit trail maintained.",
+      
+      "physician_end_user": "✅ Your prior authorization request was approved. AI can now draft the authorization for Ozempic. You'll need to review and approve the draft before it's submitted to the insurance company.",
+      
+      "patient_facing": "On January 18, 2026, your doctor (Dr. Sarah Chen) used AI assistance to help with your insurance prior authorization for Ozempic. The AI accessed only necessary information: your age, diabetes diagnosis, current medications, and allergies. Your doctor will review everything before submitting to your insurance company."
+    }
+  }
+}

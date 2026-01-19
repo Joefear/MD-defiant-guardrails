@@ -1,0 +1,368 @@
+# Guardrail Risk Tier Enforcement Specification
+# Risk Levels Drive Actual Enforcement Behavior
+# Version 1.0 | January 2026
+
+---
+# PURPOSE
+# --------
+# Risk tiers aren't just labels — they mechanically change how Guardrail
+# enforces policy. High-risk workflows get stricter controls, more logging,
+# and additional human oversight.
+#
+# This specification defines EXACTLY what changes at each risk level.
+
+risk_tier_definitions:
+  
+  # LOW RISK
+  # --------
+  # Standard workflows with minimal compliance exposure
+  low_risk:
+    criteria:
+      - "Routine formulary check"
+      - "Generic medication substitution"
+      - "Informational query (no PHI modification)"
+      - "Patient accessing their own records (standard sections)"
+    
+    enforcement_profile:
+      latency_budget_ms: 50
+        # Fast path: minimal policy overhead
+      
+      require_dual_approval: false
+        # Single reviewer sufficient
+      
+      logging_mode: "standard"
+        # Log decision, identity chain, outcome
+      
+      audit_sampling_rate: 0.10
+        # 10% of requests get detailed review
+      
+      human_oversight:
+        required: false
+        optional_review: "post_hoc_sampling"
+      
+      data_access_restrictions:
+        apply_minimum_necessary: true
+        allow_cached_results: true
+        redaction_level: "standard"
+      
+      action_restrictions:
+        can_auto_execute: ["read_only_operations", "draft_documents"]
+        requires_approval: []
+        never_allowed: ["write_to_ehr_without_review", "submit_to_external_payer"]
+  
+  # MEDIUM RISK
+  # -----------
+  # Standard clinical workflows with PHI access
+  medium_risk:
+    criteria:
+      - "Prior authorization (standard medication)"
+      - "Clinical documentation assistance"
+      - "Care coordination / patient triage"
+      - "Test result summarization"
+    
+    enforcement_profile:
+      latency_budget_ms: 100
+        # Moderate overhead acceptable for policy checks
+      
+      require_dual_approval: false
+        # Single qualified reviewer
+      
+      logging_mode: "detailed"
+        # Log decision + policy evaluation details + evidence
+      
+      audit_sampling_rate: 0.25
+        # 25% detailed review
+      
+      human_oversight:
+        required: "conditional"
+        triggers:
+          - "ai_confidence_below_threshold"
+          - "sensitive_data_accessed"
+          - "unusual_pattern_detected"
+        reviewer_qualification: "licensed_clinician_OR_prior_auth_specialist"
+        sla_minutes: 120
+      
+      data_access_restrictions:
+        apply_minimum_necessary: true
+        allow_cached_results: false  # Fresh data required
+        redaction_level: "aggressive"  # Strip more identifiers
+        block_bulk_queries: true
+      
+      action_restrictions:
+        can_auto_execute: ["draft_documents", "queue_for_review"]
+        requires_approval: ["send_patient_message", "generate_clinical_note"]
+        never_allowed: ["auto_submit_prior_auth", "place_medication_order"]
+  
+  # HIGH RISK
+  # ---------
+  # Workflows with significant compliance or patient safety implications
+  high_risk:
+    criteria:
+      - "Prior authorization (experimental/high-cost treatment)"
+      - "Mental health or substance abuse records access"
+      - "HIV status or genetic information"
+      - "Clinical note finalization"
+      - "Medication order generation"
+    
+    enforcement_profile:
+      latency_budget_ms: 200
+        # Extensive validation justified
+      
+      require_dual_approval: true
+        # Two independent reviewers required
+      
+      logging_mode: "forensic"
+        # Log EVERYTHING: full request, all policy evaluations, all data accessed,
+        # complete decision tree, timestamps for every step
+      
+      audit_sampling_rate: 0.50
+        # 50% detailed review
+      
+      human_oversight:
+        required: true  # ALWAYS
+        minimum_qualification: "licensed_provider_OR_privacy_officer"
+        sla_minutes: 60  # Faster response required
+        escalation_if_timeout: "block_automatically"
+        require_attestation: true
+        attestation_text: |
+          "I have reviewed this AI request and approve the access/action based on
+          clinical necessity and compliance with applicable policies."
+      
+      data_access_restrictions:
+        apply_minimum_necessary: true
+        allow_cached_results: false
+        redaction_level: "maximum"  # Minimize all identifiers
+        block_bulk_queries: true
+        require_explicit_justification: true
+        additional_consent_check: "verify_patient_consent_current"
+      
+      action_restrictions:
+        can_auto_execute: []  # Nothing auto-executes
+        requires_approval: [
+          "access_sensitive_phi",
+          "generate_clinical_content",
+          "any_write_operation"
+        ]
+        never_allowed: [
+          "auto_submit_anywhere",
+          "modify_ehr_without_physician_signature"
+        ]
+      
+      additional_controls:
+        notify_compliance_officer: true
+        enhanced_monitoring: "flag_for_quality_review"
+        vip_patient_additional_check: true
+  
+  # CRITICAL RISK
+  # -------------
+  # Workflows with immediate patient safety or legal implications
+  critical_risk:
+    criteria:
+      - "Emergency department triage decisions"
+      - "Medication dosage calculations"
+      - "Radiation therapy planning"
+      - "Surgical procedure documentation"
+      - "End-of-life care decisions"
+    
+    enforcement_profile:
+      latency_budget_ms: 300
+        # Extensive validation + multi-step approvals
+      
+      require_dual_approval: true
+        # Multiple qualified reviewers
+      
+      logging_mode: "legal_defensibility"
+        # Everything logged with cryptographic signatures for tamper-evidence
+        # Assume all logs will be subpoenaed
+      
+      audit_sampling_rate: 1.00
+        # 100% review — every single request audited
+      
+      human_oversight:
+        required: true
+        minimum_qualification: "board_certified_physician_in_relevant_specialty"
+        sla_minutes: 30
+        escalation_if_timeout: "block_and_page_on_call"
+        require_attestation: true
+        require_physician_signature: true  # Electronic signature required
+        medical_legal_review: "recommended"
+      
+      data_access_restrictions:
+        apply_minimum_necessary: true
+        allow_cached_results: false
+        redaction_level: "maximum"
+        block_bulk_queries: true
+        require_explicit_justification: true
+        additional_consent_check: true
+        cross_reference_verification: "validate_all_data_against_multiple_sources"
+      
+      action_restrictions:
+        can_auto_execute: []
+        requires_approval: ["everything"]
+        never_allowed: ["any_automated_action"]
+      
+      additional_controls:
+        notify_compliance_officer: true
+        notify_risk_management: true
+        notify_medical_director: true
+        enhanced_monitoring: "real_time_observation"
+        require_incident_report_if_ai_error: true
+        patient_safety_team_review: "mandatory"
+
+# DYNAMIC RISK ASSESSMENT
+# ------------------------
+# Risk tier is computed dynamically based on request characteristics
+
+risk_calculation:
+  base_risk: "from_workflow_type"
+    # prior_authorization = MEDIUM by default
+    # clinical_documentation = HIGH by default
+  
+  risk_escalation_factors:
+    # These factors INCREASE risk tier
+    - factor: "sensitive_data_category_accessed"
+      categories:
+        - "substance_abuse_records"
+        - "hiv_status"
+        - "genetic_information"
+        - "mental_health_records"
+      escalation: "+1_tier"  # MEDIUM → HIGH, HIGH → CRITICAL
+    
+    - factor: "high_value_treatment"
+      threshold: "$10,000_annual_cost"
+      escalation: "+1_tier"
+    
+    - factor: "experimental_investigational_treatment"
+      escalation: "+1_tier"
+    
+    - factor: "vip_patient"
+      escalation: "+1_tier"  # Additional scrutiny
+    
+    - factor: "after_hours_access"
+      time_range: "outside_normal_business_hours"
+      escalation: "+0.5_tier"  # Increases monitoring
+    
+    - factor: "bulk_data_request"
+      threshold: "more_than_10_patients"
+      escalation: "+1_tier"
+    
+    - factor: "ai_confidence_below_threshold"
+      threshold: 0.70
+      escalation: "+0.5_tier"
+  
+  risk_mitigation_factors:
+    # These factors can LOWER risk tier (but never below MEDIUM for PHI)
+    - factor: "routine_established_workflow"
+      criteria: "same_user_same_workflow_type_no_recent_violations"
+      reduction: "-0.5_tier"
+    
+    - factor: "strong_clinical_justification"
+      criteria: "documented_medical_necessity_with_evidence"
+      reduction: "-0.5_tier"
+  
+  final_risk_tier:
+    calculation: "base_risk + escalation_factors - mitigation_factors"
+    minimum_for_phi: "MEDIUM"  # Never drop below MEDIUM when PHI involved
+    maximum: "CRITICAL"
+
+# ENFORCEMENT BEHAVIOR TABLE
+# ---------------------------
+# What actually changes at each tier
+
+enforcement_comparison:
+  metric: "Approval Required"
+  LOW: "No (post-hoc sampling)"
+  MEDIUM: "Conditional (if triggers)"
+  HIGH: "Yes (always)"
+  CRITICAL: "Yes (physician signature)"
+
+  metric: "Latency Budget"
+  LOW: "50ms"
+  MEDIUM: "100ms"
+  HIGH: "200ms"
+  CRITICAL: "300ms"
+
+  metric: "Logging Detail"
+  LOW: "Standard"
+  MEDIUM: "Detailed"
+  HIGH: "Forensic"
+  CRITICAL: "Legal defensibility"
+
+  metric: "Audit Sampling"
+  LOW: "10%"
+  MEDIUM: "25%"
+  HIGH: "50%"
+  CRITICAL: "100%"
+
+  metric: "Can Auto-Execute Actions"
+  LOW: "Read-only + drafts"
+  MEDIUM: "Drafts + queue for review"
+  HIGH: "Nothing"
+  CRITICAL: "Nothing"
+
+  metric: "Compliance Notifications"
+  LOW: "None"
+  MEDIUM: "If anomaly"
+  HIGH: "Yes (compliance officer)"
+  CRITICAL: "Yes (compliance + risk + medical director)"
+
+# EXAMPLE: RISK ESCALATION IN ACTION
+# -----------------------------------
+
+example_escalation:
+  initial_request:
+    workflow_type: "prior_authorization"
+    base_risk: "MEDIUM"
+  
+  detected_factors:
+    - "Patient is VIP" # +1 tier
+    - "Treatment cost $50,000" # +1 tier
+    - "Substance abuse records accessed" # +1 tier
+  
+  final_risk_tier: "CRITICAL"
+    # MEDIUM + 3 escalations = CRITICAL
+  
+  enforcement_changes:
+    latency_budget: "50ms → 300ms"
+    human_oversight: "Conditional → ALWAYS (physician signature)"
+    logging: "Standard → Legal defensibility"
+    audit_sampling: "10% → 100%"
+    compliance_notifications: "None → Compliance + Risk + Medical Director"
+
+# INTEGRATION WITH DECISION OBJECT
+# ---------------------------------
+
+decision_object_mapping:
+  field: "risk_assessment"
+  required: true
+  includes:
+    risk_tier: "LOW | MEDIUM | HIGH | CRITICAL"
+    risk_factors: ["list_of_factors_that_contributed"]
+    enforcement_profile_applied: "latency_budget, logging_mode, oversight_requirements"
+    why_this_tier: "human_readable_explanation"
+
+# COMPLIANCE BENEFITS
+# -------------------
+#
+# With risk-driven enforcement, organizations can demonstrate:
+#
+# 1. Proportional Controls
+#    "Low-risk requests get fast path. High-risk requests get additional scrutiny."
+#
+# 2. Automated Risk Detection
+#    "System automatically escalates when sensitive data or high-value treatments detected."
+#
+# 3. Audit Defensibility
+#    "Every critical-risk request has 100% audit coverage and physician signature."
+#
+# 4. Resource Optimization
+#    "We don't burden staff with approving routine requests, but always catch high-risk."
+
+# NOTES FOR IMPLEMENTATION
+# -------------------------
+#
+# 1. Risk calculation happens AFTER identity chain validation
+# 2. Enforcement profile is applied BEFORE policy evaluation
+# 3. Risk tier can change mid-workflow if new factors detected
+# 4. All risk calculations are logged for audit review
+# 5. Organizations can customize thresholds and factors

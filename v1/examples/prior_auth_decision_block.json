@@ -1,0 +1,625 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://defiantindustries.com/schemas/gdf/v1.0/decision",
+  "title": "Guardrail Decision Format (GDF) v1.0",
+  "description": "Vendor-neutral JSON Schema for recording policy enforcement decisions produced by AI governance and guardrail systems in regulated environments. The resulting decision object is intended to be an auditable compliance artifact (not merely an application log).",
+
+  "x_spec": {
+    "name": "Guardrail Decision Format",
+    "version": "1.0",
+    "uri": "https://defiantindustries.com/schemas/gdf/v1.0",
+    "maintained_by": "Defiant Industries Inc.",
+    "license": "CC0-1.0"
+  },
+
+  "type": "object",
+
+  "required": [
+    "decision_id",
+    "decision",
+    "timestamp",
+    "policy_id",
+    "policy_version",
+    "workflow_type",
+    "identity_chain",
+    "requested_data",
+    "requested_actions",
+    "risk_assessment"
+  ],
+
+  "properties": {
+    "decision_id": {
+      "type": "string",
+      "description": "Unique identifier for this decision record (UUID v4).",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+      "examples": ["550e8400-e29b-41d4-a716-446655440000"]
+    },
+
+    "request_id": {
+      "type": "string",
+      "description": "Upstream correlation identifier for the originating request. Useful for linking this decision to application logs, tickets, or workflow systems.",
+      "examples": ["req_abc123def456"]
+    },
+
+    "trace_id": {
+      "type": "string",
+      "description": "W3C Trace Context trace identifier for observability integration. Must be 32 lowercase hex characters and MUST NOT be all zeros.",
+      "pattern": "^(?!0{32})[0-9a-f]{32}$",
+      "examples": ["4bf92f3577b34da6a3ce929d0e0e4736"]
+    },
+
+    "span_id": {
+      "type": "string",
+      "description": "W3C Trace Context span identifier. Must be 16 lowercase hex characters and MUST NOT be all zeros.",
+      "pattern": "^(?!0{16})[0-9a-f]{16}$",
+      "examples": ["00f067aa0ba902b7"]
+    },
+
+    "jurisdiction": {
+      "type": "string",
+      "description": "Legal/regulatory jurisdiction context used during policy evaluation. ISO 3166-2 is recommended (e.g., US-FL, GB-ENG).",
+      "examples": ["US-FL"]
+    },
+
+    "decision": {
+      "type": "string",
+      "enum": ["ALLOW", "REQUIRE_APPROVAL", "BLOCK"],
+      "description": "Final enforcement outcome."
+    },
+
+    "decision_reason_code": {
+      "type": "string",
+      "description": "Machine-readable reason code for analytics and SIEM correlation. Codes SHOULD be sourced from an organization reason-code registry. Pattern: 3–64 chars, uppercase alphanumeric with underscore.",
+      "pattern": "^[A-Z0-9_]{3,64}$",
+      "examples": ["MINIMUM_NECESSARY_VIOLATION"]
+    },
+
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Timestamp when the decision was produced (ISO 8601 with timezone).",
+      "examples": ["2026-01-18T14:23:45.123Z"]
+    },
+
+    "policy_id": {
+      "type": "string",
+      "description": "Identifier of the policy used for evaluation.",
+      "examples": ["policy_prior_authorization_v1"]
+    },
+
+    "policy_version": {
+      "type": "string",
+      "description": "Policy version applied. Required for audit reproducibility.",
+      "examples": ["1.0"]
+    },
+
+    "policy_hash": {
+      "type": "string",
+      "description": "SHA-256 hash of the exact policy content used for evaluation. Enables tamper-evident verification.",
+      "pattern": "^[a-f0-9]{64}$",
+      "examples": ["e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"]
+    },
+
+    "matched_rules": {
+      "type": "array",
+      "description": "Optional list of specific rule evaluations that contributed to the final decision.",
+      "minItems": 0,
+      "items": {
+        "type": "object",
+        "required": ["rule_id", "rule_type", "outcome"],
+        "properties": {
+          "rule_id": {
+            "type": "string",
+            "description": "Identifier of the rule that was evaluated.",
+            "examples": ["HIPAA_MIN_NECESSARY_001"]
+          },
+          "rule_type": {
+            "type": "string",
+            "enum": ["PHI_ACCESS", "ACTION_CONTROL", "RISK_TIER", "APPROVAL_GATE", "IDENTITY_VALIDATION", "CUSTOM"],
+            "description": "Rule category used for reporting and analytics."
+          },
+          "outcome": {
+            "type": "string",
+            "enum": ["PASS", "FAIL", "ESCALATE"],
+            "description": "Evaluation result for the rule."
+          },
+          "reason": {
+            "type": "string",
+            "description": "Human-readable explanation of why the rule produced its outcome.",
+            "examples": ["Complete medical history exceeds minimum necessary for prior authorization."]
+          },
+          "reason_code": {
+            "type": "string",
+            "description": "Machine-readable reason code for this rule outcome.",
+            "pattern": "^[A-Z0-9_]{3,64}$"
+          }
+        }
+      }
+    },
+
+    "workflow_type": {
+      "type": "string",
+      "description": "Workflow context under which the request was evaluated (e.g., prior authorization, claims processing).",
+      "examples": ["prior_authorization"]
+    },
+
+    "purpose": {
+      "type": "string",
+      "description": "Declared business/clinical purpose for the request, if available. Supports minimum-necessary and purpose-limitation controls.",
+      "examples": ["Verify insurance coverage for prescribed medication"]
+    },
+
+    "identity_chain": {
+      "type": "object",
+      "description": "Structured audit trail describing who initiated the request and which agent/system acted during evaluation.",
+      "additionalProperties": false,
+      "required": ["user_id", "user_role", "agent_id"],
+      "properties": {
+        "user_id": {
+          "type": "string",
+          "description": "Identifier of the human user who initiated the workflow (e.g., NPI, employee ID).",
+          "examples": ["NPI_1234567890"]
+        },
+        "user_role": {
+          "type": "string",
+          "description": "Role of the requesting user used for authorization decisions.",
+          "examples": ["attending_physician"]
+        },
+        "user_department": {
+          "type": "string",
+          "description": "Department or service line context, if applicable.",
+          "examples": ["cardiology"]
+        },
+        "user_groups": {
+          "type": "array",
+          "description": "Group memberships used for RBAC/ABAC decisions.",
+          "items": { "type": "string" },
+          "examples": [["physicians", "cardiology_attendings", "clinical_staff"]]
+        },
+        "agent_id": {
+          "type": "string",
+          "description": "Identifier of the AI agent or model instance that made the data/action request.",
+          "examples": ["claude-sonnet-4-instance-42"]
+        },
+        "agent_version": {
+          "type": "string",
+          "description": "Agent/model version identifier used to support reproducibility.",
+          "examples": ["claude-sonnet-4-20250514"]
+        },
+        "session_id": {
+          "type": "string",
+          "description": "Session identifier for the interaction.",
+          "examples": ["sess_abc123def456"]
+        },
+        "system_of_origin": {
+          "type": "string",
+          "description": "System that originated the request (EHR, CRM, ticketing, etc.).",
+          "examples": ["epic_smartfhir"]
+        },
+        "idp": {
+          "type": "string",
+          "description": "Identity provider used to authenticate the initiating user.",
+          "examples": ["okta"]
+        },
+        "auth_strength": {
+          "type": "string",
+          "enum": ["PASSWORD", "MFA", "DEVICE_TRUST", "PKI_CERTIFICATE"],
+          "description": "Authentication strength as assessed by the identity provider."
+        },
+        "tenant_id": {
+          "type": "string",
+          "description": "Tenant identifier for multi-tenant deployments.",
+          "examples": ["org_health_system_abc"]
+        },
+        "on_behalf_of": {
+          "type": "object",
+          "description": "Optional context when an agent acts on behalf of another entity (patient, payer, system).",
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": ["PATIENT", "PROVIDER", "PAYER", "SYSTEM"],
+              "description": "Entity type represented."
+            },
+            "id": {
+              "type": "string",
+              "description": "Identifier of the represented entity.",
+              "examples": ["patient_hash_987654"]
+            }
+          }
+        }
+      }
+    },
+
+    "patient_context": {
+      "type": "object",
+      "description": "Optional patient/subject context (use anonymized identifiers in logs).",
+      "properties": {
+        "patient_id": {
+          "type": "string",
+          "description": "Anonymized patient identifier (e.g., hashed MRN or token).",
+          "examples": ["patient_hash_4a3f9c2e1d8b7f6a"]
+        },
+        "encounter_id": {
+          "type": "string",
+          "description": "Encounter/visit identifier, if applicable.",
+          "examples": ["enc_20260118_001"]
+        },
+        "vip_flag": {
+          "type": "boolean",
+          "description": "True if the patient is designated VIP and subject to enhanced controls."
+        },
+        "sealed_record_flag": {
+          "type": "boolean",
+          "description": "True if the record is sealed and subject to enhanced controls."
+        }
+      }
+    },
+
+    "requested_data": {
+      "type": "array",
+      "description": "Data fields the AI agent requested. MAY be an empty array for pure action decisions or identity-stage denials.",
+      "minItems": 0,
+      "items": {
+        "type": "object",
+        "required": ["field"],
+        "properties": {
+          "field": {
+            "type": "string",
+            "description": "Field name, path, or selector describing the requested data.",
+            "examples": ["diagnoses.primary_icd10"]
+          },
+          "field_tag": {
+            "type": "string",
+            "description": "Optional taxonomy tag for classification and policy mapping.",
+            "examples": ["phi_tags.clinical.primary_diagnosis"]
+          },
+          "data_category": {
+            "type": "string",
+            "enum": ["DEMOGRAPHICS", "DIAGNOSIS", "MEDICATIONS", "LABS", "IMAGING", "NOTES", "BILLING", "OTHER"],
+            "description": "High-level data category."
+          },
+          "sensitivity": {
+            "type": "string",
+            "enum": ["STANDARD", "SENSITIVE", "RESTRICTED"],
+            "description": "Sensitivity classification."
+          },
+          "justification": {
+            "type": "string",
+            "description": "Optional justification provided by the agent or calling system.",
+            "examples": ["Verify medical necessity for prior authorization"]
+          }
+        }
+      }
+    },
+
+    "authorized_data": {
+      "type": "array",
+      "description": "Subset of requested data that was authorized for release.",
+      "minItems": 0,
+      "items": {
+        "type": "object",
+        "required": ["field"],
+        "properties": {
+          "field": { "type": "string" },
+          "field_tag": { "type": "string" },
+          "data_category": { "type": "string" },
+          "sensitivity": { "type": "string" },
+          "authorization_basis": {
+            "type": "string",
+            "description": "Rationale for authorization (policy clause, role entitlement, purpose limitation, etc.).",
+            "examples": ["Permitted under HIPAA minimum necessary for treatment"]
+          }
+        }
+      }
+    },
+
+    "blocked_data": {
+      "type": "array",
+      "description": "Subset of requested data that was denied.",
+      "minItems": 0,
+      "items": {
+        "type": "object",
+        "required": ["field", "reason"],
+        "properties": {
+          "field": { "type": "string" },
+          "field_tag": { "type": "string" },
+          "data_category": { "type": "string" },
+          "sensitivity": { "type": "string" },
+          "reason": {
+            "type": "string",
+            "description": "Human-readable explanation for denial.",
+            "examples": ["Mental health diagnoses restricted by organization policy/state law; requires privacy officer approval."]
+          },
+          "reason_code": {
+            "type": "string",
+            "description": "Machine-readable reason code for denial.",
+            "pattern": "^[A-Z0-9_]{3,64}$"
+          },
+          "alternative": {
+            "type": "string",
+            "description": "Optional suggested alternative request that may be permitted.",
+            "examples": ["Request age instead of date of birth"]
+          }
+        }
+      }
+    },
+
+    "requested_actions": {
+      "type": "array",
+      "description": "Actions the AI agent requested to perform. MAY be an empty array for pure data decisions or identity-stage denials.",
+      "minItems": 0,
+      "items": {
+        "type": "object",
+        "required": ["action"],
+        "properties": {
+          "action": {
+            "type": "string",
+            "description": "Action identifier.",
+            "examples": ["submit_prior_authorization_to_payer"]
+          },
+          "action_category": {
+            "type": "string",
+            "enum": ["RETRIEVAL", "DOCUMENTATION", "COMMUNICATION", "ORDERING", "BILLING", "ADMINISTRATIVE", "OTHER"],
+            "description": "High-level action category."
+          },
+          "risk_level": {
+            "type": "string",
+            "enum": ["LOW", "MEDIUM", "HIGH", "CRITICAL"],
+            "description": "Inherent risk level of the requested action."
+          },
+          "parameters": {
+            "type": "object",
+            "description": "Action-specific parameters. Schema is intentionally open to support heterogeneous tools.",
+            "additionalProperties": true
+          }
+        }
+      }
+    },
+
+    "authorized_actions": {
+      "type": "array",
+      "description": "Subset of requested actions that were authorized.",
+      "minItems": 0,
+      "items": {
+        "type": "object",
+        "required": ["action"],
+        "properties": {
+          "action": { "type": "string" },
+          "action_category": { "type": "string" },
+          "risk_level": { "type": "string" },
+          "authorization_basis": {
+            "type": "string",
+            "description": "Rationale for authorization (policy clause, role entitlement, etc.).",
+            "examples": ["Action permitted for this user role and workflow"]
+          }
+        }
+      }
+    },
+
+    "blocked_actions": {
+      "type": "array",
+      "description": "Subset of requested actions that were denied.",
+      "minItems": 0,
+      "items": {
+        "type": "object",
+        "required": ["action", "reason"],
+        "properties": {
+          "action": { "type": "string" },
+          "action_category": { "type": "string" },
+          "risk_level": { "type": "string" },
+          "reason": {
+            "type": "string",
+            "description": "Human-readable explanation for denial.",
+            "examples": ["High-cost treatment requires medical director approval before submission."]
+          },
+          "reason_code": {
+            "type": "string",
+            "pattern": "^[A-Z0-9_]{3,64}$"
+          },
+          "required_approval": {
+            "type": "string",
+            "description": "If applicable, indicates the role or party required to approve.",
+            "examples": ["medical_director"]
+          }
+        }
+      }
+    },
+
+    "risk_assessment": {
+      "type": "object",
+      "description": "Risk assessment computed during evaluation.",
+      "additionalProperties": false,
+      "required": ["risk_tier"],
+      "properties": {
+        "risk_tier": {
+          "type": "string",
+          "enum": ["LOW", "MEDIUM", "HIGH", "CRITICAL"],
+          "description": "Overall risk tier."
+        },
+        "risk_score": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Optional numeric risk score on a 0–100 scale."
+        },
+        "risk_factors": {
+          "type": "array",
+          "description": "Optional list of contributing risk factors.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "factor": { "type": "string", "examples": ["sensitive_category_data"] },
+              "weight": { "type": "number", "description": "Multiplier applied to base risk or model-specific factor weight." }
+            }
+          }
+        },
+        "confidence_score": {
+          "type": ["number", "null"],
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Optional decision confidence on a 0–1 scale. Use null when confidence is not applicable."
+        },
+        "confidence_method": {
+          "type": "string",
+          "description": "Method used to compute confidence. Use NOT_APPLICABLE when confidence does not apply.",
+          "examples": ["NOT_APPLICABLE"]
+        }
+      }
+    },
+
+    "human_gate": {
+      "type": "object",
+      "description": "Human approval requirements when the decision is REQUIRE_APPROVAL.",
+      "additionalProperties": false,
+      "properties": {
+        "required": { "type": "boolean", "description": "True when human approval is required before proceeding." },
+        "reason": { "type": "string", "description": "Human-readable explanation for why approval is required." },
+        "reason_codes": {
+          "type": "array",
+          "description": "Machine-readable approval reason codes.",
+          "items": { "type": "string", "pattern": "^[A-Z0-9_]{3,64}$" }
+        },
+        "reviewer_role": { "type": "string", "description": "Role required to approve." },
+        "reviewers": { "type": "array", "description": "Optional explicit reviewer identities.", "items": { "type": "string" } },
+        "sla_minutes": { "type": "integer", "description": "Target approval time (minutes).", "minimum": 0 },
+        "escalation_on_timeout": {
+          "type": "string",
+          "enum": ["BLOCK", "ALLOW_WITH_LOGGING", "ESCALATE_TO_EXECUTIVE"],
+          "description": "Behavior when the approval SLA expires."
+        },
+        "approval_ticket_id": { "type": "string", "description": "External ticket reference (e.g., ServiceNow)." },
+        "outcome": { "type": "string", "enum": ["PENDING", "APPROVED", "DENIED", "TIMEOUT"], "description": "Approval status." },
+        "approved_by": { "type": "string", "description": "Identifier of the approving party." },
+        "approved_at": { "type": "string", "format": "date-time", "description": "Timestamp when approval was granted." }
+      }
+    },
+
+    "evidence_refs": {
+      "type": "array",
+      "description": "Optional evidence records indicating whether agent claims were verified against source data.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "claim": { "type": "string" },
+          "verified": { "type": "boolean" },
+          "source": { "type": "string" },
+          "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+        }
+      }
+    },
+
+    "notifications": {
+      "type": "array",
+      "description": "Optional notification records (compliance, security, privacy, etc.).",
+      "items": {
+        "type": "object",
+        "properties": {
+          "recipient_role": { "type": "string" },
+          "recipient_id": { "type": "string" },
+          "channel": {
+            "type": "string",
+            "enum": ["EMAIL", "SMS", "SLACK", "PAGERDUTY", "SIEM", "TICKETING_SYSTEM", "OTHER"]
+          },
+          "notification_id": { "type": "string" },
+          "sent_at": { "type": "string", "format": "date-time" }
+        }
+      }
+    },
+
+    "latency_ms": {
+      "type": "integer",
+      "description": "Decision processing latency in milliseconds.",
+      "minimum": 0,
+      "examples": [87]
+    },
+
+    "compliance_tags": {
+      "type": "array",
+      "description": "Optional references to regulatory controls/policies relevant to the decision.",
+      "items": { "type": "string" },
+      "examples": [["HIPAA_164.502(b)", "42_CFR_Part_2", "GDPR_Article_6", "CCPA"]]
+    },
+
+    "audit_metadata": {
+      "type": "object",
+      "description": "Optional metadata supporting audit workflows and retention requirements.",
+      "properties": {
+        "log_level": { "type": "string", "enum": ["STANDARD", "DETAILED", "FORENSIC"] },
+        "retention_years": { "type": "integer", "minimum": 0 },
+        "export_batch_id": { "type": "string" },
+        "siem_event_id": { "type": "string" }
+      }
+    },
+
+    "integrity": {
+      "type": "object",
+      "description": "Optional integrity features for tamper-evidence (signatures, hash chaining).",
+      "additionalProperties": false,
+      "properties": {
+        "hash_chain_prev": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "digital_signature": { "type": "string" },
+        "signature_algorithm": { "type": "string", "enum": ["ed25519", "rsa2048", "ecdsa_p256"] },
+        "signed_fields": { "type": "array", "items": { "type": "string" } },
+        "signing_key_id": { "type": "string" }
+      }
+    },
+
+    "decision_explanation_human_readable": {
+      "type": "string",
+      "description": "Optional human-readable decision summary intended for compliance review and audit workflows (including OCR)."
+    },
+
+    "extensions": {
+      "type": "object",
+      "description": "Domain-specific extensions. Core schema remains stable; domain features SHOULD be added under extension namespaces.",
+      "additionalProperties": true,
+      "properties": {
+        "healthcare": {
+          "type": "object",
+          "description": "Healthcare-specific extension namespace.",
+          "properties": {
+            "hallucination_checks": {
+              "type": "object",
+              "description": "Optional hallucination check results.",
+              "properties": {
+                "performed": { "type": "boolean" },
+                "unverified_statements": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "statement": { "type": "string" },
+                      "source_checked": { "type": "string" }
+                    }
+                  }
+                },
+                "contradictions": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "statement": { "type": "string" },
+                      "source_ehr_field": { "type": "string" },
+                      "actual_value": { "type": "string" }
+                    }
+                  }
+                }
+              }
+            },
+            "diagnosis_medication_alignment": {
+              "type": "object",
+              "description": "Optional clinical appropriateness alignment check.",
+              "properties": {
+                "diagnosis_code": { "type": "string" },
+                "medication": { "type": "string" },
+                "clinically_appropriate": { "type": "boolean" },
+                "contraindications": { "type": "array", "items": { "type": "string" } }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

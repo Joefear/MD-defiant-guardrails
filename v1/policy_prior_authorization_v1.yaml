@@ -1,0 +1,574 @@
+# Defiant Guardrail™ Healthcare Policy - Production Ready
+# Prior Authorization: PHI Access & Action Control
+# Version 1.1 | January 2026
+# ALL TECHNICAL FIXES APPLIED
+
+policy_id: "HIPAA_PRIOR_AUTH_001"
+policy_name: "Prior Authorization - Minimum Necessary & Action Control"
+policy_version: "1.1"
+effective_date: "2026-01-18"
+policy_owner: "Chief Compliance Officer"
+
+description: |
+  Production-ready policy for AI-assisted prior authorization workflows.
+  Enforces HIPAA minimum necessary for both PHI ACCESS and ACTIONS.
+  Includes identity chain tracking, risk-tier enforcement, and explainability.
+
+# ============================================================================
+# INFRASTRUCTURE: IDENTITY CHAIN (FIX: Add explicit identity chain)
+# ============================================================================
+
+identity_chain:
+  require:
+    - human_user_id
+    - user_role
+    - ai_agent_id
+    - system_of_origin
+  enforcement:
+    block_if_missing: true
+  audit_mapping:
+    format: "USER:{human_user_id} → ROLE:{user_role} → AGENT:{ai_agent_id} → POLICY:{policy_id}"
+  
+  identity_sources:
+    human_user_id:
+      format: "NPI_number_or_employee_id"
+      examples: ["NPI_1234567890", "emp_jsmith_001"]
+      verification: "active_directory_OR_okta"
+    
+    user_role:
+      permitted_roles:
+        - "attending_physician"
+        - "resident_physician"
+        - "nurse_practitioner"
+        - "physician_assistant"
+        - "prior_auth_specialist"
+      role_source: "AD_security_groups"
+    
+    ai_agent_id:
+      format: "agent_type-model_version-instance_id"
+      examples: ["claude-sonnet-4-healthcare-instance-42"]
+      verification: "guardrail_agent_registry"
+    
+    system_of_origin:
+      examples: ["epic_smartfhir", "cerner_api", "custom_prior_auth_portal"]
+
+# ============================================================================
+# WORKFLOW SCOPE
+# ============================================================================
+
+applies_to:
+  workflow_types:
+    - "prior_authorization"
+    - "coverage_determination"
+    - "formulary_check"
+  
+  ai_agents:
+    - "claude_healthcare"
+    - "chatgpt_health"
+    - "custom_prior_auth_agent"
+
+# ============================================================================
+# PHI ACCESS CONTROL
+# ============================================================================
+
+phi_access_control:
+  
+  # FIX #2: DOB is conditional, default to age + hashed token
+  identifier_minimization:
+    default_patient_identifiers:
+      - field: "age"
+        phi_tag_ref: "identifiers.indirect.age"
+        justification: "Age-based formulary requirements"
+      
+      - field: "patient_token"
+        format: "hashed_anonymous_id"
+        phi_tag_ref: "identifiers.indirect.patient_token_hashed"
+        justification: "De-identified tracking"
+    
+    conditional_identifiers:
+      - field: "date_of_birth"
+        phi_tag_ref: "identifiers.direct.date_of_birth"
+        condition: "IF_payer_requires_exact_DOB_OR_system_needs_matching"
+        justification: "Some payers require exact DOB for coverage determination"
+        alternative: "use_age_when_possible"
+      
+      - field: "medical_record_number"
+        phi_tag_ref: "identifiers.direct.medical_record_number"
+        condition: "IF_needed_for_payer_API"
+        redact_in_logs: true
+  
+  # Permitted PHI access
+  permitted_data:
+    patient_demographics:
+      - field: "age"
+        phi_tag_ref: "identifiers.indirect.age"
+      - field: "gender"
+        condition: "IF_medication_is_gender_specific"
+      - field: "state_of_residence"
+        phi_tag_ref: "identifiers.indirect.state_of_residence"
+    
+    clinical_information:
+      - field: "primary_diagnosis"
+        phi_tag_ref: "clinical.diagnoses.primary_diagnosis"
+        format: "ICD-10_code"
+        justification: "Determine medical necessity"
+      
+      - field: "secondary_diagnoses"
+        phi_tag_ref: "clinical.diagnoses.secondary_diagnoses"
+        condition: "IF_relevant_to_requested_treatment"
+        max_records: 5
+        justification: "Comorbidity assessment"
+      
+      - field: "current_medications"
+        phi_tag_ref: "clinical.medications.current_active_medications"
+        time_window: "active_prescriptions_only"
+        justification: "Drug interaction check"
+      
+      - field: "allergies"
+        scope: "medication_allergies_only"
+        justification: "Safety screening"
+      
+      - field: "recent_labs"
+        phi_tag_ref: "clinical.labs_imaging.recent_lab_results"
+        condition: "IF_required_for_medication_safety"
+        time_window: "90_days"
+        justification: "Baseline monitoring requirements"
+  
+  # FIX #1: Correct 42 CFR Part 2 scope + split mental health
+  prohibited_data:
+    - field: "complete_medical_history"
+      phi_tag_ref: "clinical.complete_problem_list"
+      exception: "NONE"
+      reason: "Exceeds minimum necessary"
+    
+    # Mental health (HIPAA + state laws, NOT automatically Part 2)
+    - field: "mental_health_diagnoses"
+      phi_tag_ref: "protected_categories.mental_health.mental_health_diagnoses"
+      exception: "IF_EXPLICITLY_REQUESTED_AND_APPROVED"
+      approval_required: "privacy_officer"
+      reason: "HIPAA Privacy Rule + state mental health laws"
+    
+    - field: "psychotherapy_notes"
+      phi_tag_ref: "protected_categories.mental_health.psychotherapy_notes"
+      exception: "NEVER"
+      reason: "45 CFR 164.501 special protection (separate from general mental health)"
+    
+    # FIX #1: Substance Use Disorder - 42 CFR Part 2 (specific scope)
+    - field: "substance_use_disorder_program_records"
+      phi_tag_ref: "protected_categories.substance_use.substance_use_disorder_program_records"
+      exception: "IF_PATIENT_CONSENT_AND_PROGRAM_APPROVAL"
+      approval_required: "privacy_officer_AND_SUD_program_consent_verified"
+      reason: "42 CFR Part 2 (federally-assisted SUD programs ONLY)"
+      scope_clarification: "Only applies to records from federally-assisted SUD treatment programs, not all substance use history"
+    
+    - field: "hiv_status"
+      phi_tag_ref: "protected_categories.hiv_status.hiv_test_results"
+      exception: "IF_CLINICALLY_NECESSARY_AND_APPROVED"
+      approval_required: "privacy_officer"
+      reason: "State-specific HIV privacy laws (CA, NY, FL, etc.)"
+    
+    - field: "genetic_information"
+      phi_tag_ref: "protected_categories.genetic.genetic_test_results"
+      exception: "IF_PHARMACOGENOMIC_TEST_REQUIRED"
+      approval_required: "medical_director"
+      reason: "GINA protections"
+
+# ============================================================================
+# ACTION CONTROL (FIX #4: First-class action governance)
+# ============================================================================
+
+action_control:
+  
+  allowed_actions:
+    - action: "draft_prior_authorization_request"
+      action_ref: "prior_auth.draft_prior_authorization_request"
+      risk_level: "MEDIUM"
+      requires_approval: false
+      conditions: []
+    
+    - action: "query_coverage_policy"
+      action_ref: "retrieval.search_clinical_guidelines"
+      risk_level: "LOW"
+      requires_approval: false
+      target_systems: ["CMS_Coverage_Database", "payer_policy_API"]
+    
+    - action: "verify_patient_eligibility"
+      action_ref: "retrieval.verify_insurance_eligibility"
+      risk_level: "LOW"
+      requires_approval: false
+      target_systems: ["payer_API"]
+  
+  prohibited_actions:
+    - action: "submit_prior_authorization_to_payer"
+      action_ref: "prior_auth.submit_prior_authorization_to_payer"
+      reason: "Requires human approval before submission"
+      requires_approval: true
+      required_approver_role: "physician_OR_prior_auth_specialist"
+      approval_triggers:
+        - condition: "investigational_treatment"
+          approver: "medical_director"
+          reason: "Experimental treatments require medical director review"
+        
+        - condition: "cost_exceeds_$10000_annual"
+          approver: "medical_director_AND_prior_auth_specialist"
+          reason: "High-cost treatments require dual approval"
+        
+        - condition: "off_label_use"
+          approver: "medical_director"
+          reason: "Off-label requires specialist review"
+    
+    - action: "modify_clinical_notes"
+      reason: "Prior auth workflow is read-only, cannot modify records"
+    
+    - action: "place_medication_order"
+      reason: "Prior auth cannot prescribe, only verify coverage"
+    
+    - action: "access_billing_information"
+      reason: "Separation of clinical and financial data"
+
+# ============================================================================
+# CONTEXTUAL VALIDATION
+# ============================================================================
+
+context_validation:
+  workflow_validation:
+    - check: "medication_diagnosis_alignment"
+      rule: "Requested medication must be indicated for primary or secondary diagnosis"
+      action_if_fail: "BLOCK_AND_ALERT"
+    
+    - check: "clinical_justification_present"
+      rule: "Request must include documented clinical rationale"
+      action_if_fail: "REQUIRE_PHYSICIAN_ANNOTATION"
+  
+  purpose_check:
+    allowed_purposes:
+      - "coverage_determination"
+      - "formulary_verification"
+      - "prior_authorization_submission"
+    prohibited_purposes:
+      - "marketing"
+      - "research"
+      - "quality_metrics"
+
+# ============================================================================
+# RISK ASSESSMENT (FIX: Risk tiers drive enforcement behavior)
+# ============================================================================
+
+risk_tier:
+  # Computed dynamically based on:
+  # - PHI sensitivity (from phi_tags)
+  # - Action risk level (from action_catalog)
+  # - Modifiers (VIP, after-hours, etc.)
+  
+  calculation_method: "aggregate_risk_from_phi_tags_and_actions"
+  
+  tier_definitions:
+    LOW:
+      threshold: [0, 25]
+      enforcement_profile:
+        latency_budget_ms: 50
+        require_dual_approval: false
+        logging_mode: "standard"
+        human_gate_sla_minutes: null
+    
+    MEDIUM:
+      threshold: [26, 60]
+      enforcement_profile:
+        latency_budget_ms: 100
+        require_dual_approval: false
+        logging_mode: "detailed"
+        human_gate_sla_minutes: 60
+    
+    HIGH:
+      threshold: [61, 100]
+      enforcement_profile:
+        latency_budget_ms: 150
+        require_dual_approval: false
+        logging_mode: "detailed"
+        human_gate_sla_minutes: 30
+        additional_checks:
+          - "verify_user_credentials_current"
+          - "check_patient_consent_status"
+    
+    CRITICAL:
+      threshold: [101, 999]
+      enforcement_profile:
+        latency_budget_ms: 200
+        require_dual_approval: true
+        logging_mode: "forensic"
+        human_gate_sla_minutes: 15
+        escalation_if_timeout: "BLOCK"
+        additional_checks:
+          - "verify_user_credentials_current"
+          - "check_patient_consent_status"
+          - "secondary_review_required"
+
+# ============================================================================
+# CONFIDENCE SCORING (FIX #3: Define confidence mechanism)
+# ============================================================================
+
+confidence_assessment:
+  method: "evidence_coverage"
+  description: "Percentage of request claims supported by verifiable EHR data"
+  
+  calculation:
+    numerator: "number_of_verified_claims"
+    denominator: "total_claims_in_request"
+    formula: "verified_claims / total_claims"
+  
+  example:
+    request_claims:
+      - "Patient has diabetes diagnosis" → verified (ICD-10 E11.9 in problem list)
+      - "Patient takes metformin" → verified (active med list)
+      - "Patient is allergic to penicillin" → NOT verified (no allergy documented)
+    score: "2/3 = 0.67"
+  
+  thresholds:
+    high_confidence: 0.85
+    medium_confidence: 0.70
+    low_confidence: "<0.70"
+  
+  enforcement:
+    - if: "confidence < 0.85"
+      then: "REQUIRE_HUMAN_REVIEW"
+      reviewer: "prior_auth_specialist"
+      sla_minutes: 60
+
+# ============================================================================
+# SPECIAL PATIENT FLAGS (FIX #5: Define VIP and sealed record logic)
+# ============================================================================
+
+special_patient_flags:
+  sources:
+    - "ehr_patient_banner_flags"
+    - "privacy_office_vip_registry"
+    - "legal_sealed_records_list"
+  
+  enforcement:
+    vip_patient:
+      additional_logging: true
+      require_justification_documented: true
+      notify: "privacy_officer"
+      approval_required: false  # But flagged for review
+    
+    sealed_record:
+      access: "BLOCK"
+      exception: "court_order_OR_legal_authorization"
+      approval_required: "privacy_officer_AND_legal_counsel"
+      notify: "immediate_alert_to_compliance"
+
+# ============================================================================
+# DATA RESIDENCY (FIX #6: Capability-based, not cloud-specific)
+# ============================================================================
+
+data_governance:
+  allowed_data_locations:
+    capability: "US_only_HIPAA_eligible_regions"
+    
+    examples_by_provider:
+      AWS: ["us-east-1", "us-west-2", "us-gov-east-1", "us-gov-west-1"]
+      Azure: ["EastUS", "WestUS", "USGovVirginia", "USGovArizona"]
+      GCP: ["us-central1", "us-east1", "us-west1"]
+      On_Premises: ["customer_data_center_US_jurisdiction"]
+  
+  encryption:
+    in_transit: "TLS_1.3_minimum"
+    at_rest: "AES_256"
+    key_management: "customer_managed_keys_required"
+
+# ============================================================================
+# HUMAN-IN-THE-LOOP
+# ============================================================================
+
+human_oversight:
+  mandatory_review:
+    - trigger: "experimental_treatment"
+      reviewer: "medical_director"
+      sla_minutes: 1440  # 24 hours
+    
+    - trigger: "cost_exceeds_$10000"
+      reviewer: "medical_director_AND_prior_auth_specialist"
+      sla_minutes: 2880  # 48 hours
+    
+    - trigger: "off_label_use"
+      reviewer: "medical_director"
+      sla_minutes: 1440
+    
+    - trigger: "access_to_protected_category_PHI"
+      reviewer: "privacy_officer"
+      sla_minutes: 120  # 2 hours
+      escalation_if_timeout: "BLOCK"
+  
+  conditional_review:
+    - trigger: "confidence_below_0.85"
+      reviewer: "prior_auth_specialist"
+      advisory_only: false
+  
+  auto_approve_if:
+    - "routine_formulary_tier_check"
+    - "generic_substitution_request"
+    - "cost_below_$1000_AND_standard_indication"
+
+# ============================================================================
+# AUDIT & COMPLIANCE
+# ============================================================================
+
+audit_requirements:
+  log_level: "comprehensive"
+  
+  required_log_fields:
+    - timestamp
+    - identity_chain  # USER→ROLE→AGENT→POLICY chain
+    - patient_id_anonymized
+    - workflow_type
+    - requested_data
+    - released_data
+    - blocked_data
+    - requested_actions
+    - allowed_actions
+    - blocked_actions
+    - risk_tier
+    - confidence_score
+    - human_approval_status
+    - decision: "ALLOW | REQUIRE_APPROVAL | BLOCK"
+    - policy_rules_triggered
+    - latency_ms
+  
+  retention_period: "6_years"  # HIPAA requirement
+  
+  compliance_reporting:
+    frequency: "weekly"
+    recipients: ["compliance_officer", "privacy_officer"]
+    format: "CSV_and_JSON_export"
+
+# ============================================================================
+# DECISION EXPLAINABILITY (FIX: Generate human-readable explanations)
+# ============================================================================
+
+decision_explanation:
+  generate: true
+  format: "human_readable"
+  
+  template: |
+    GUARDRAIL POLICY DECISION REPORT
+    ================================
+    
+    Timestamp: {timestamp}
+    Decision ID: {decision_id}
+    
+    IDENTITY CHAIN:
+    {identity_chain}
+    
+    WORKFLOW:
+    Type: {workflow_type}
+    Purpose: {purpose}
+    
+    DECISION: {decision}
+    
+    REASON:
+    {decision_reason}
+    
+    PHI ACCESS:
+    - Requested: {phi_fields_requested}
+    - Released: {phi_fields_released}
+    - Blocked: {phi_fields_blocked} (Reason: {block_reasons})
+    
+    ACTIONS:
+    - Requested: {actions_requested}
+    - Allowed: {actions_allowed}
+    - Blocked: {actions_blocked} (Reason: {block_reasons})
+    
+    RISK ASSESSMENT:
+    - Risk Tier: {risk_tier}
+    - Risk Factors: {risk_factors}
+    - Confidence Score: {confidence_score} (Method: {confidence_method})
+    
+    HUMAN APPROVAL:
+    - Required: {approval_required}
+    - Reason: {approval_reason}
+    - Reviewer Role: {required_reviewer_role}
+    - SLA: {sla_minutes} minutes
+    - Status: {approval_status}
+    
+    POLICY COMPLIANCE:
+    - Policy: {policy_id} v{policy_version}
+    - Rules Triggered: {matched_rules}
+    - Compliance Tags: {compliance_tags}
+    
+    AUDIT TRAIL:
+    This decision is logged and retained for 6 years per HIPAA requirements.
+    Decision record available for regulatory review.
+    
+    ---
+    Generated by Defiant Guardrail™ v{guardrail_version}
+
+# ============================================================================
+# ENFORCEMENT ACTIONS
+# ============================================================================
+
+enforcement:
+  on_policy_violation:
+    - action: "BLOCK_REQUEST"
+      immediate: true
+    - action: "ALERT_COMPLIANCE_OFFICER"
+      method: "email_and_slack"
+    - action: "LOG_VIOLATION_ATTEMPT"
+      enhanced_logging: true
+    - action: "INCREMENT_USER_RISK_SCORE"
+      threshold_for_review: 5
+  
+  on_sensitive_data_access:
+    - action: "REQUIRE_MANUAL_APPROVAL"
+      timeout: "2_hours"
+      escalation: "BLOCK_if_no_response"
+    - action: "NOTIFY_PRIVACY_OFFICER"
+      priority: "high"
+    - action: "ENHANCED_AUDIT_LOG"
+      include_full_context: true
+
+# ============================================================================
+# IMPLEMENTATION NOTES
+# ============================================================================
+
+implementation_notes: |
+  PRODUCTION-READY POLICY - Version 1.1
+  
+  All 7 technical fixes applied:
+  ✓ FIX #1: Correct 42 CFR Part 2 scope (SUD programs only)
+  ✓ FIX #2: DOB conditional, default to age + hashed token
+  ✓ FIX #3: Confidence score defined (evidence coverage method)
+  ✓ FIX #4: Action control first-class (not just data governance)
+  ✓ FIX #5: VIP/sealed records logic defined
+  ✓ FIX #6: Data residency capability-based (not AWS-specific)
+  ✓ FIX #7: N/A for prior auth (edit requirement is clinical doc policy)
+  
+  Infrastructure additions:
+  ✓ Explicit identity chain (USER→ROLE→AGENT→POLICY)
+  ✓ Risk tiers drive enforcement behavior
+  ✓ Decision explainability for compliance teams
+  
+  This policy is ready for:
+  - Production deployment
+  - Compliance audit
+  - Demo to buyers
+  
+  Customize:
+  - Approval thresholds ($ amounts, risk triggers)
+  - User roles for your organization
+  - Integration endpoints for your EHR/payer systems
+
+related_policies:
+  - "HIPAA_CLINICAL_DOC_002"
+  - "HIPAA_CARE_COORDINATION_003"
+  - "CONSUMER_HEALTH_004"
+
+approvals:
+  - role: "Chief Compliance Officer"
+    date: "2026-01-18"
+    signature: "[DIGITAL_SIGNATURE]"
+  - role: "Chief Medical Information Officer"
+    date: "2026-01-18"
+    signature: "[DIGITAL_SIGNATURE]"
+  - role: "Privacy Officer"
+    date: "2026-01-18"
+    signature: "[DIGITAL_SIGNATURE]"

@@ -1,0 +1,144 @@
+{
+  "decision_id": "550e8400-e29b-41d4-a716-446655440003",
+  "decision": "REQUIRE_APPROVAL",
+  "timestamp": "2026-01-18T14:27:33.789Z",
+  
+  "policy_id": "HIPAA_PRIOR_AUTH_001",
+  "policy_version": "1.1",
+  
+  "matched_rules": [
+    {
+      "rule_id": "high_cost_approval_trigger",
+      "rule_name": "Require approval for treatments >$10K",
+      "outcome": "escalate",
+      "reason": "Annual cost exceeds $10,000 threshold"
+    },
+    {
+      "rule_id": "off_label_use_trigger",
+      "rule_name": "Require medical director approval for off-label use",
+      "outcome": "escalate",
+      "reason": "Medication prescribed for off-label indication"
+    }
+  ],
+  
+  "workflow_type": "prior_authorization",
+  "purpose": "Prior auth for high-cost specialty medication (off-label use)",
+  
+  "identity_chain": {
+    "human_user_id": "NPI_1234567890",
+    "user_role": "attending_physician",
+    "ai_agent_id": "claude-sonnet-4-healthcare-instance-42",
+    "system_of_origin": "epic_smartfhir"
+  },
+  
+  "patient_context": {
+    "patient_id": "hash_8x9y0z1a2b3c4d5e",
+    "is_vip": false,
+    "is_sealed_record": false
+  },
+  
+  "requested_data": [
+    {
+      "field": "patient_demographics.age",
+      "justification": "Age-based coverage rules"
+    },
+    {
+      "field": "diagnoses.primary_icd10",
+      "justification": "Verify medical necessity"
+    },
+    {
+      "field": "medications.current_list",
+      "justification": "Check for prior therapies"
+    }
+  ],
+  
+  "released_data": [
+    {
+      "field": "patient_demographics.age",
+      "authorization_rule": "permitted_data.patient_demographics.age"
+    },
+    {
+      "field": "diagnoses.primary_icd10",
+      "authorization_rule": "permitted_data.clinical_information.primary_diagnosis"
+    },
+    {
+      "field": "medications.current_list",
+      "authorization_rule": "permitted_data.clinical_information.current_medications"
+    }
+  ],
+  
+  "blocked_data": [],
+  
+  "requested_actions": [
+    {
+      "action": "submit_prior_authorization_to_payer",
+      "target": "payer_API",
+      "parameters": {
+        "medication": "Spinraza (nusinersen)",
+        "annual_cost": "$750,000",
+        "indication": "off_label_ALS_treatment"
+      }
+    }
+  ],
+  
+  "allowed_actions": [
+    {
+      "action": "draft_prior_authorization_request",
+      "authorization_rule": "allowed_actions.draft_prior_authorization_request"
+    }
+  ],
+  
+  "blocked_actions": [
+    {
+      "action": "submit_prior_authorization_to_payer",
+      "reason": "Requires medical director approval (cost >$10K + off-label use)",
+      "blocking_rule": "prohibited_actions.submit_prior_authorization_to_payer"
+    }
+  ],
+  
+  "risk_assessment": {
+    "risk_tier": "CRITICAL",
+    "risk_factors": [
+      "Annual cost: $750,000 (far exceeds $10K threshold)",
+      "Off-label medication use",
+      "Specialty biologic medication",
+      "High-stakes clinical and financial decision"
+    ],
+    "confidence_score": 0.88,
+    "confidence_method": "evidence_coverage"
+  },
+  
+  "human_gate": {
+    "required": true,
+    "reason": "High-cost treatment ($750K) + off-label use requires dual approval",
+    "required_reviewer_role": "medical_director_AND_prior_auth_specialist",
+    "sla_minutes": 2880,
+    "escalation_if_timeout": "block",
+    "outcome": "pending",
+    "reviewed_by": null,
+    "review_timestamp": null
+  },
+  
+  "evidence_refs": [
+    {
+      "claim": "Patient diagnosed with ALS",
+      "source": "problem_list.active[0].icd10 = G12.21",
+      "verified": true
+    },
+    {
+      "claim": "Spinraza indicated for spinal muscular atrophy, not ALS",
+      "source": "FDA_label_indication",
+      "verified": true
+    },
+    {
+      "claim": "Annual cost approximately $750,000",
+      "source": "payer_formulary_database",
+      "verified": true
+    }
+  ],
+  
+  "latency_ms": 156,
+  "guardrail_version": "1.0.0",
+  
+  "decision_explanation_human_readable": "REQUIRES APPROVAL: Physician requested prior authorization for Spinraza (nusinersen) for ALS treatment. AI drafted the request successfully. However, SUBMISSION to the payer is BLOCKED pending human approval because: (1) Annual cost is $750,000, exceeding the $10,000 threshold requiring medical director review, and (2) This is off-label use (Spinraza is FDA-approved for SMA, not ALS), requiring medical director approval. The request has been routed to the medical director and prior auth specialist for dual approval within 48 hours. PHI access was appropriate and allowed."
+}

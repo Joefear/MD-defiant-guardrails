@@ -1,0 +1,359 @@
+# Guardrail Healthcare - Action Catalog
+# Defines all actions AI agents might attempt in healthcare workflows
+# Version 1.0 | January 2026
+
+---
+# ACTION TAXONOMY
+#
+# Every action an AI agent requests maps to:
+# - Risk level
+# - Required approvals
+# - Target system
+# - Audit requirements
+
+healthcare_actions:
+  
+  # INFORMATION RETRIEVAL (Read-only)
+  retrieval:
+    - action: "query_patient_record"
+      risk_level: "MEDIUM"
+      requires_approval: false
+      governed_by: "PHI_access_policies"
+      audit_level: "standard"
+      notes: "Governed by data access policies, not action policies"
+    
+    - action: "search_clinical_guidelines"
+      risk_level: "LOW"
+      requires_approval: false
+      target_systems: ["PubMed", "UpToDate", "CMS_Coverage_Database"]
+      audit_level: "minimal"
+    
+    - action: "verify_insurance_eligibility"
+      risk_level: "LOW"
+      requires_approval: false
+      target_systems: ["payer_API"]
+      audit_level: "standard"
+  
+  # DOCUMENTATION (Write to medical record)
+  documentation:
+    - action: "generate_clinical_note_draft"
+      risk_level: "HIGH"
+      requires_approval: false  # Drafting is allowed
+      notes: "Draft generation allowed, but finalization requires physician approval"
+      audit_level: "detailed"
+    
+    - action: "finalize_clinical_note_to_EHR"
+      risk_level: "CRITICAL"
+      requires_approval: true
+      required_approver_role: "attending_physician"
+      target_systems: ["EHR"]
+      prerequisites:
+        - "physician_reviewed_note"
+        - "physician_edited_at_least_one_section"
+        - "physician_signed_attestation"
+      audit_level: "forensic"
+      compliance_requirements:
+        - "HIPAA_integrity_controls"
+        - "medical_legal_documentation_standards"
+    
+    - action: "append_to_existing_note"
+      risk_level: "HIGH"
+      requires_approval: true
+      required_approver_role: "note_author_or_supervising_physician"
+      target_systems: ["EHR"]
+      audit_level: "detailed"
+  
+  # PRIOR AUTHORIZATION
+  prior_auth:
+    - action: "draft_prior_authorization_request"
+      risk_level: "MEDIUM"
+      requires_approval: false
+      target_systems: ["internal_review"]
+      audit_level: "standard"
+      notes: "AI can draft, but cannot submit without approval"
+    
+    - action: "submit_prior_authorization_to_payer"
+      risk_level: "HIGH"
+      requires_approval: true
+      required_approver_role: "physician_OR_prior_auth_specialist"
+      target_systems: ["payer_API", "portal", "fax"]
+      approval_triggers:
+        - condition: "investigational_treatment"
+          approver: "medical_director"
+        - condition: "cost_exceeds_$10000"
+          approver: "medical_director_AND_prior_auth_specialist"
+        - condition: "off_label_use"
+          approver: "medical_director"
+      audit_level: "detailed"
+      compliance_requirements:
+        - "HIPAA_minimum_necessary"
+        - "payer_contract_requirements"
+    
+    - action: "appeal_prior_authorization_denial"
+      risk_level: "MEDIUM"
+      requires_approval: true
+      required_approver_role: "physician"
+      target_systems: ["payer_API"]
+      audit_level: "standard"
+  
+  # PATIENT COMMUNICATION
+  patient_communication:
+    - action: "draft_patient_message"
+      risk_level: "MEDIUM"
+      requires_approval: false
+      notes: "AI can draft, but cannot send without review"
+      audit_level: "standard"
+    
+    - action: "send_patient_portal_message"
+      risk_level: "HIGH"
+      requires_approval: true
+      required_approver_role: "RN_OR_physician"
+      target_systems: ["patient_portal"]
+      approval_triggers:
+        - condition: "clinical_recommendation_included"
+          approver: "RN_minimum"
+        - condition: "abnormal_test_results"
+          approver: "physician"
+        - condition: "medication_advice"
+          approver: "physician_OR_pharmacist"
+      audit_level: "detailed"
+      patient_safety_check: true
+    
+    - action: "send_automated_appointment_reminder"
+      risk_level: "LOW"
+      requires_approval: false
+      target_systems: ["SMS", "email", "patient_portal"]
+      audit_level: "minimal"
+      notes: "Pre-approved workflow for non-clinical communication"
+  
+  # ORDERS & PRESCRIPTIONS
+  orders:
+    - action: "draft_medication_order"
+      risk_level: "CRITICAL"
+      requires_approval: false
+      notes: "AI can suggest, but NEVER submit without physician order"
+      audit_level: "detailed"
+    
+    - action: "submit_medication_order_to_pharmacy"
+      risk_level: "CRITICAL"
+      requires_approval: true
+      required_approver_role: "physician_with_prescribing_authority"
+      target_systems: ["EHR_order_system", "eRx"]
+      prerequisites:
+        - "physician_electronic_signature"
+        - "DEA_number_if_controlled_substance"
+        - "allergy_check_passed"
+        - "interaction_check_passed"
+      audit_level: "forensic"
+      compliance_requirements:
+        - "HIPAA"
+        - "DEA_EPCS_if_controlled"
+        - "state_prescribing_laws"
+      prohibited: "AI_CANNOT_PRESCRIBE"
+    
+    - action: "place_lab_order"
+      risk_level: "HIGH"
+      requires_approval: true
+      required_approver_role: "physician_OR_NP_OR_PA_with_ordering_privileges"
+      target_systems: ["EHR_order_system", "LIS"]
+      audit_level: "detailed"
+    
+    - action: "place_imaging_order"
+      risk_level: "HIGH"
+      requires_approval: true
+      required_approver_role: "physician"
+      target_systems: ["EHR_order_system", "PACS"]
+      audit_level: "detailed"
+  
+  # BILLING & ADMINISTRATIVE
+  billing:
+    - action: "suggest_billing_codes"
+      risk_level: "MEDIUM"
+      requires_approval: false
+      notes: "AI can suggest, but coding must be verified by certified coder"
+      audit_level: "standard"
+      compliance_requirements:
+        - "separation_of_clinical_and_billing"
+        - "anti_fraud_compliance"
+    
+    - action: "submit_claim_to_payer"
+      risk_level: "HIGH"
+      requires_approval: true
+      required_approver_role: "certified_coder_OR_billing_specialist"
+      target_systems: ["claims_clearinghouse", "payer_API"]
+      prerequisites:
+        - "coding_review_completed"
+        - "clinical_documentation_supports_codes"
+      audit_level: "detailed"
+      compliance_requirements:
+        - "HIPAA_transaction_standards"
+        - "anti_fraud_OIG_guidelines"
+    
+    - action: "access_financial_information"
+      risk_level: "MEDIUM"
+      requires_approval: false
+      governed_by: "role_based_access_control"
+      prohibited_for: "clinical_AI_agents"
+      audit_level: "standard"
+      notes: "Separation of clinical and financial data"
+  
+  # SYSTEM ADMINISTRATION
+  administration:
+    - action: "modify_patient_demographics"
+      risk_level: "HIGH"
+      requires_approval: true
+      required_approver_role: "registration_staff_OR_HIM_specialist"
+      target_systems: ["EHR_MPI"]
+      audit_level: "detailed"
+      prohibited: "AI_typically_not_permitted"
+    
+    - action: "merge_duplicate_patient_records"
+      risk_level: "CRITICAL"
+      requires_approval: true
+      required_approver_role: "HIM_director"
+      target_systems: ["EHR_MPI"]
+      audit_level: "forensic"
+      prohibited: "AI_NOT_PERMITTED"
+      notes: "Too high risk for AI automation"
+    
+    - action: "create_new_patient_record"
+      risk_level: "HIGH"
+      requires_approval: true
+      required_approver_role: "registration_staff"
+      target_systems: ["EHR"]
+      audit_level: "detailed"
+      prohibited: "AI_typically_not_permitted"
+
+# RISK PROFILES BY ACTION
+#
+# Different risk tiers get different enforcement
+
+risk_enforcement_profiles:
+  
+  LOW:
+    latency_budget_ms: 50
+    require_dual_approval: false
+    logging_mode: "standard"
+    human_gate_sla_minutes: null
+    escalation_path: "standard"
+  
+  MEDIUM:
+    latency_budget_ms: 100
+    require_dual_approval: false
+    logging_mode: "detailed"
+    human_gate_sla_minutes: 60
+    escalation_path: "standard"
+  
+  HIGH:
+    latency_budget_ms: 150
+    require_dual_approval: false
+    logging_mode: "detailed"
+    human_gate_sla_minutes: 30
+    escalation_path: "priority"
+    additional_checks:
+      - "verify_user_credentials_current"
+      - "check_patient_consent_status"
+      - "validate_clinical_appropriateness"
+  
+  CRITICAL:
+    latency_budget_ms: 200
+    require_dual_approval: true
+    logging_mode: "forensic"
+    human_gate_sla_minutes: 15
+    escalation_path: "urgent"
+    additional_checks:
+      - "verify_user_credentials_current"
+      - "check_patient_consent_status"
+      - "validate_clinical_appropriateness"
+      - "confirm_license_scope_permits_action"
+      - "secondary_review_required"
+    incident_reporting: "immediate_if_attempted_without_approval"
+
+# ACTION AUTHORIZATION RULES
+#
+# How to determine if an action is allowed
+
+authorization_framework:
+  
+  evaluation_order:
+    1: "Check if action is in prohibited list for this workflow"
+    2: "Verify user role has permission for this action type"
+    3: "Check if approval is required"
+    4: "If approval required, verify approver credentials"
+    5: "Validate prerequisites are met"
+    6: "Check patient-specific constraints (consent, restrictions)"
+    7: "Apply risk-based controls"
+    8: "Log decision and enforce"
+  
+  prohibited_actions_by_workflow:
+    prior_authorization:
+      prohibited:
+        - "place_medication_order"
+        - "modify_clinical_notes"
+        - "access_billing_codes"
+      rationale: "Prior auth is read-only workflow, cannot modify records"
+    
+    clinical_documentation:
+      prohibited:
+        - "submit_claim_to_payer"
+        - "access_financial_information"
+      rationale: "Separation of clinical and billing"
+    
+    patient_portal_assistant:
+      prohibited:
+        - "modify_patient_record"
+        - "place_orders"
+        - "prescribe_medications"
+        - "submit_prior_authorization"
+      rationale: "Patient-facing AI has limited action scope"
+
+# COMPLIANCE MAPPING
+#
+# Which regulations govern which actions
+
+compliance_by_action:
+  
+  finalize_clinical_note_to_EHR:
+    regulations:
+      - name: "HIPAA_Integrity_Controls"
+        citation: "45_CFR_164.312(c)"
+        requirement: "Implement policies to protect PHI from improper alteration or destruction"
+      - name: "Medical_Staff_Bylaws"
+        requirement: "Only licensed providers can finalize documentation"
+      - name: "State_Medical_Board_Rules"
+        requirement: "Documentation standards for legal medical record"
+  
+  submit_medication_order_to_pharmacy:
+    regulations:
+      - name: "DEA_EPCS"
+        citation: "21_CFR_1311"
+        requirement: "Electronic prescribing of controlled substances"
+        applies_if: "controlled_substance"
+      - name: "State_Prescribing_Authority"
+        requirement: "Provider must have prescribing privileges in state"
+      - name: "HIPAA"
+        citation: "45_CFR_164"
+        requirement: "Secure transmission of PHI"
+  
+  submit_prior_authorization_to_payer:
+    regulations:
+      - name: "HIPAA_Minimum_Necessary"
+        citation: "45_CFR_164.502(b)"
+        requirement: "Limit PHI to minimum necessary for authorization"
+      - name: "HIPAA_Transaction_Standards"
+        citation: "45_CFR_162"
+        requirement: "Use standard transaction formats"
+
+# USAGE EXAMPLE
+#
+# Policy references action catalog:
+#
+# allowed_actions:
+#   - action_ref: "prior_auth.draft_prior_authorization_request"
+#     conditions: []
+#
+# blocked_actions:
+#   - action_ref: "prior_auth.submit_prior_authorization_to_payer"
+#     reason: "Requires physician approval"
+#     requires_approval: true
+#     required_approver_role: "physician"

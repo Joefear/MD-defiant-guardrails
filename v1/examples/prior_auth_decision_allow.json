@@ -1,0 +1,177 @@
+{
+  "decision_id": "550e8400-e29b-41d4-a716-446655440001",
+  "decision": "ALLOW",
+  "timestamp": "2026-01-18T14:23:45.123Z",
+  
+  "policy_id": "HIPAA_PRIOR_AUTH_001",
+  "policy_version": "1.1",
+  
+  "matched_rules": [
+    {
+      "rule_id": "minimum_necessary_check",
+      "rule_name": "Verify PHI access is minimum necessary",
+      "outcome": "pass",
+      "reason": "All requested data elements justified for prior auth workflow"
+    },
+    {
+      "rule_id": "action_authorization",
+      "rule_name": "Verify requested actions are permitted",
+      "outcome": "pass",
+      "reason": "Draft generation is allowed without approval"
+    }
+  ],
+  
+  "workflow_type": "prior_authorization",
+  "purpose": "Verify insurance coverage for prescribed diabetes medication",
+  
+  "identity_chain": {
+    "human_user_id": "NPI_1234567890",
+    "user_role": "attending_physician",
+    "user_department": "endocrinology",
+    "ai_agent_id": "claude-sonnet-4-healthcare-instance-42",
+    "agent_version": "claude-sonnet-4-20250514",
+    "session_id": "sess_abc123def456",
+    "system_of_origin": "epic_smartfhir"
+  },
+  
+  "patient_context": {
+    "patient_id": "hash_4a3f9c2e1d8b7f6a",
+    "encounter_id": "enc_2026011812345",
+    "is_vip": false,
+    "is_sealed_record": false
+  },
+  
+  "requested_data": [
+    {
+      "field": "patient_demographics.age",
+      "scope": "current",
+      "justification": "Age-based formulary requirements"
+    },
+    {
+      "field": "diagnoses.primary_icd10",
+      "scope": "current",
+      "justification": "Verify medication is indicated for diagnosis"
+    },
+    {
+      "field": "medications.current_list",
+      "scope": "active",
+      "justification": "Check drug interactions"
+    },
+    {
+      "field": "allergies.medication_allergies",
+      "scope": "all",
+      "justification": "Safety screening"
+    }
+  ],
+  
+  "released_data": [
+    {
+      "field": "patient_demographics.age",
+      "scope": "current",
+      "redaction_applied": false,
+      "authorization_rule": "permitted_data.patient_demographics.age"
+    },
+    {
+      "field": "diagnoses.primary_icd10",
+      "scope": "current",
+      "redaction_applied": false,
+      "authorization_rule": "permitted_data.clinical_information.primary_diagnosis"
+    },
+    {
+      "field": "medications.current_list",
+      "scope": "active",
+      "redaction_applied": false,
+      "authorization_rule": "permitted_data.clinical_information.current_medications"
+    },
+    {
+      "field": "allergies.medication_allergies",
+      "scope": "all",
+      "redaction_applied": false,
+      "authorization_rule": "permitted_data.clinical_information.allergies"
+    }
+  ],
+  
+  "blocked_data": [],
+  
+  "requested_actions": [
+    {
+      "action": "draft_prior_authorization_request",
+      "target": "internal_review",
+      "parameters": {
+        "medication": "Ozempic 1mg",
+        "diagnosis": "E11.9 (Type 2 Diabetes)",
+        "duration": "90_days"
+      }
+    }
+  ],
+  
+  "allowed_actions": [
+    {
+      "action": "draft_prior_authorization_request",
+      "authorization_rule": "allowed_actions.draft_prior_authorization_request",
+      "conditions": []
+    }
+  ],
+  
+  "blocked_actions": [],
+  
+  "risk_assessment": {
+    "risk_tier": "MEDIUM",
+    "risk_factors": [
+      "Standard prior authorization workflow",
+      "No protected category PHI accessed",
+      "Routine medication request"
+    ],
+    "confidence_score": 0.95,
+    "confidence_method": "evidence_coverage",
+    "confidence_details": {
+      "verified_claims": 4,
+      "total_claims": 4,
+      "unverified_claims": []
+    }
+  },
+  
+  "human_gate": {
+    "required": false,
+    "reason": "Routine prior auth draft; no approval triggers"
+  },
+  
+  "evidence_refs": [
+    {
+      "claim": "Patient is 52 years old",
+      "source": "demographics.date_of_birth → calculated_age",
+      "verified": true
+    },
+    {
+      "claim": "Patient has Type 2 Diabetes diagnosis",
+      "source": "problem_list.active[0].icd10 = E11.9",
+      "verified": true
+    },
+    {
+      "claim": "Patient takes Metformin 1000mg BID",
+      "source": "medications.active[0]",
+      "verified": true
+    },
+    {
+      "claim": "No documented medication allergies",
+      "source": "allergies.medications = []",
+      "verified": true
+    }
+  ],
+  
+  "latency_ms": 87,
+  "guardrail_version": "1.0.0",
+  
+  "compliance_tags": [
+    "HIPAA_minimum_necessary",
+    "HIPAA_transaction_standards"
+  ],
+  
+  "audit_metadata": {
+    "retention_period_days": 2190,
+    "export_format": "json",
+    "digital_signature": "sha256:a1b2c3d4e5f6..."
+  },
+  
+  "decision_explanation_human_readable": "On 2026-01-18 at 14:23:45 UTC, Guardrail evaluated a prior authorization request from Dr. Smith (NPI 1234567890). The AI agent (Claude Sonnet 4) requested access to patient age, primary diagnosis, current medications, and allergies to draft a prior authorization for Ozempic. All requested data was minimum necessary for this workflow and was ALLOWED. The agent was permitted to draft the request but cannot submit without physician approval. Risk tier: MEDIUM. Confidence: 95%. No human approval required for drafting."
+}

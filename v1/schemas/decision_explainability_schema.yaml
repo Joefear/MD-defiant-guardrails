@@ -1,0 +1,468 @@
+# Guardrail Decision Explainability Specification
+# Human-Readable Compliance Narratives
+# Version 1.0 | January 2026
+
+---
+# PURPOSE
+# --------
+# Compliance officers don't want JSON logs. They want sentences they can:
+# - Show to auditors
+# - Include in compliance reports
+# - Read to understand what happened
+# - Use as evidence in investigations
+#
+# This specification defines how Guardrail generates human-readable
+# explanations for every policy decision.
+
+decision_explanation:
+  
+  generate: true  # Always generate explanation
+  
+  format: "human_readable"  # Not just machine logs
+  
+  output_formats:
+    - "plain_text"  # For email, reports
+    - "markdown"    # For documentation
+    - "pdf"         # For formal records
+    - "json"        # Machine-readable (still includes explanation text)
+  
+  # Core explanation template
+  base_template: |
+    On {timestamp}, Guardrail evaluated an AI request for {workflow_type}.
+    
+    **Decision**: {decision}
+    
+    **Why**: {justification}
+    
+    **Identity Chain**:
+    - User: {human_user_name} ({human_user_id})
+    - Role: {user_role}
+    - AI Agent: {ai_agent_id}
+    - System: {system_of_origin}
+    
+    **Risk Assessment**:
+    - Risk Tier: {risk_tier}
+    - Risk Factors: {risk_factors_list}
+    
+    **Data Requested**: {fields_requested_summary}
+    **Data Released**: {fields_released_summary}
+    **Data Blocked**: {fields_blocked_summary}
+    
+    **Actions Requested**: {actions_requested_summary}
+    **Actions Allowed**: {actions_allowed_summary}
+    **Actions Blocked**: {actions_blocked_summary}
+    
+    **Human Approval**: {approval_status}
+    {if_approved: "Approved by: {reviewer_name} ({reviewer_role}) at {review_timestamp}"}
+    {if_blocked: "Blocked because: {blocking_reasons}"}
+    
+    **Policy Applied**: {policy_id} v{policy_version}
+    **Regulatory Compliance**: {compliance_frameworks}
+  
+  # Decision-specific templates
+  templates_by_decision:
+    
+    ALLOW:
+      template: |
+        ✅ **REQUEST ALLOWED**
+        
+        On {timestamp_human}, Guardrail approved an AI request from {human_user_name} 
+        ({user_role}) using {ai_agent_id} for {workflow_type}.
+        
+        **What was allowed**:
+        {allowed_summary}
+        
+        **Why it was allowed**:
+        - Policy {policy_id} permits this access for {workflow_type}
+        - User has appropriate role ({user_role})
+        - Data requested meets minimum necessary standard
+        - All required justifications provided
+        {if_risk_factors: "- Additional checks passed for risk factors: {risk_factors}"}
+        
+        **Compliance verification**:
+        - ✓ HIPAA minimum necessary: {minimum_necessary_check}
+        - ✓ Identity chain complete: USER → ROLE → AGENT → SYSTEM
+        - ✓ Purpose documented: {purpose}
+        {if_sensitive_data: "- ✓ Sensitive data authorization: {sensitive_data_approvals}"}
+        
+        **Audit trail**: Decision ID {decision_id}
+      
+      summary_version: |
+        ALLOWED: {human_user_name} ({user_role}) via {ai_agent_id} accessed {fields_count} 
+        data elements for {workflow_type}. Policy {policy_id} applied. Risk: {risk_tier}.
+    
+    REQUIRE_APPROVAL:
+      template: |
+        ⏸️ **REQUEST REQUIRES HUMAN APPROVAL**
+        
+        On {timestamp_human}, Guardrail flagged an AI request from {human_user_name} 
+        ({user_role}) using {ai_agent_id} for {workflow_type} as requiring human review.
+        
+        **What requires approval**:
+        {approval_required_summary}
+        
+        **Why approval is required**:
+        {approval_reasons}
+        
+        **Who must approve**:
+        - Required reviewer role: {required_reviewer_role}
+        - Response deadline: {sla_minutes} minutes
+        - If timeout: {escalation_action}
+        
+        **Current status**:
+        {if_pending: "⏳ Awaiting review from {required_reviewer_role}"}
+        {if_approved: "✅ Approved by {reviewer_name} at {review_timestamp}
+        Reviewer notes: {reviewer_notes}"}
+        {if_denied: "❌ Denied by {reviewer_name} at {review_timestamp}
+        Reason: {denial_reason}"}
+        
+        **Risk factors triggering review**:
+        {risk_factors_detailed}
+        
+        **Audit trail**: Decision ID {decision_id}
+      
+      summary_version: |
+        REQUIRES APPROVAL: {human_user_name} request flagged for {approval_reasons_short}. 
+        Requires {required_reviewer_role} review within {sla_minutes} min. Status: {approval_status}.
+    
+    BLOCK:
+      template: |
+        🛑 **REQUEST BLOCKED**
+        
+        On {timestamp_human}, Guardrail blocked an AI request from {human_user_name} 
+        ({user_role}) using {ai_agent_id} for {workflow_type}.
+        
+        **What was blocked**:
+        {blocked_summary}
+        
+        **Why it was blocked**:
+        {blocking_reasons_detailed}
+        
+        **Policy violations detected**:
+        {violated_rules}
+        
+        **What the user should do**:
+        {remediation_guidance}
+        
+        **Incident tracking**:
+        - Compliance officer notified: {compliance_notification_status}
+        - Incident ID: {incident_id}
+        - Follow-up required: {followup_required}
+        
+        **Audit trail**: Decision ID {decision_id}
+      
+      summary_version: |
+        BLOCKED: {human_user_name} request denied. Reason: {blocking_reason_short}. 
+        Violated {violated_rules_count} policy rules. Compliance notified.
+
+  # Explainability by audience
+  audience_specific_explanations:
+    
+    compliance_officer:
+      focus:
+        - "Regulatory framework compliance (HIPAA, state laws)"
+        - "Policy rule that triggered decision"
+        - "Audit trail completeness"
+        - "Violations detected (if any)"
+      
+      template: |
+        **Compliance Review: Decision {decision_id}**
+        
+        **Regulatory Framework**: {compliance_tags}
+        **Policy**: {policy_id} v{policy_version}
+        **Decision**: {decision}
+        
+        **Compliance Checks**:
+        - Minimum Necessary: {minimum_necessary_result}
+        - Identity Chain: {identity_chain_complete}
+        - Purpose Limitation: {purpose_limitation_result}
+        - Consent Verification: {consent_status}
+        
+        **Risk Assessment**:
+        - Tier: {risk_tier}
+        - Factors: {risk_factors}
+        - Enforcement Profile: {enforcement_profile_applied}
+        
+        {if_violation: "**POLICY VIOLATIONS**:
+        {violated_rules_detailed}
+        
+        **Remediation Actions**:
+        {remediation_steps}"}
+        
+        **Audit Documentation**:
+        - Complete audit trail: ✓
+        - Retention period: 6 years
+        - Export format: JSON + CSV
+        - Digital signature: {signature_hash}
+    
+    auditor_ocr:
+      focus:
+        - "Proof of minimum necessary enforcement"
+        - "Identity and authorization chain"
+        - "Human oversight evidence"
+        - "Data access justification"
+      
+      template: |
+        **OCR Audit Response: Decision {decision_id}**
+        
+        **Request Summary**:
+        On {date}, {user_role} {human_user_name} requested AI agent {ai_agent_id} 
+        to access PHI for {workflow_type}.
+        
+        **Minimum Necessary Enforcement**:
+        {minimum_necessary_narrative}
+        
+        **Authorization Chain**:
+        1. Human user authenticated: {human_user_id} (verified against {identity_provider})
+        2. Role validated: {user_role} (authorized for {workflow_type})
+        3. AI agent registered: {ai_agent_id} v{ai_agent_version}
+        4. Policy evaluated: {policy_id} applied
+        5. Decision: {decision}
+        
+        **Data Access Log**:
+        - Requested: {requested_data_elements}
+        - Released: {released_data_elements}
+        - Blocked: {blocked_data_elements}
+        - Justification for each: {per_field_justifications}
+        
+        **Human Oversight**:
+        {human_oversight_evidence}
+        
+        **Supporting Documentation**:
+        - Policy document: {policy_id}.yaml
+        - Audit log: decision_{decision_id}.json
+        - Digital signature: {cryptographic_signature}
+    
+    physician_end_user:
+      focus:
+        - "What happened"
+        - "Why (simply)"
+        - "What to do next"
+      
+      template: |
+        **Your AI Request: {workflow_type}**
+        
+        {if_allow: "✅ **Approved**
+        
+        Your request was approved. The AI agent can now {allowed_actions_simple}.
+        
+        Data accessed: {released_fields_simple}"}
+        
+        {if_require_approval: "⏸️ **Needs Review**
+        
+        Your request requires approval from {required_reviewer_role}.
+        
+        Why: {approval_reason_simple}
+        
+        You'll be notified when reviewed (typically within {sla_minutes} minutes)."}
+        
+        {if_block: "🛑 **Not Allowed**
+        
+        Your request couldn't be completed because:
+        {blocking_reason_simple}
+        
+        What to do:
+        {remediation_guidance_simple}
+        
+        Questions? Contact {support_contact}"}
+    
+    patient_facing:
+      focus:
+        - "What AI did with their health information"
+        - "Who authorized it"
+        - "Their rights"
+      
+      template: |
+        **About Your Health Information**
+        
+        On {date_simple}, {provider_name} used AI assistance to help with 
+        {workflow_type_patient_friendly}.
+        
+        **What the AI accessed**:
+        {patient_friendly_data_description}
+        
+        **Why this was needed**:
+        {purpose_patient_friendly}
+        
+        **Who approved this**:
+        {approver_patient_friendly}
+        
+        **Your privacy rights**:
+        - You can request a complete log of AI access to your records
+        - You can opt out of AI assistance (your care team will work with you manually)
+        - This AI access is logged and monitored for your protection
+        
+        **Questions?** Contact our Privacy Office: {privacy_contact}
+
+# EXAMPLES OF GENERATED EXPLANATIONS
+# -----------------------------------
+
+example_allow_decision:
+  scenario: "Routine prior auth for standard medication"
+  
+  generated_explanation: |
+    ✅ **REQUEST ALLOWED**
+    
+    On January 18, 2026 at 2:45 PM EST, Guardrail approved an AI request from 
+    Dr. Sarah Chen (attending_physician) using claude-healthcare-instance-42 
+    for prior_authorization.
+    
+    **What was allowed**:
+    Access to patient's current diabetes diagnosis (ICD-10: E11.9), active medications 
+    (metformin 1000mg), and drug allergies for coverage verification of Ozempic 1mg.
+    
+    **Why it was allowed**:
+    - Policy HIPAA_PRIOR_AUTH_001 permits this access for prior authorization workflows
+    - Dr. Chen has appropriate role (attending_physician)
+    - Data requested meets minimum necessary standard (only diagnosis, current meds, allergies)
+    - Clinical justification provided: "Verify coverage for GLP-1 agonist for Type 2 diabetes management"
+    
+    **Compliance verification**:
+    - ✓ HIPAA minimum necessary: Only 3 data elements accessed (vs 145 available in chart)
+    - ✓ Identity chain complete: Dr. Chen → attending_physician → claude-42 → Epic EHR
+    - ✓ Purpose documented: Prior authorization for prescribed medication
+    
+    **Audit trail**: Decision ID 550e8400-e29b-41d4-a716-446655440000
+
+example_block_decision:
+  scenario: "AI attempted to access complete medical history for routine prior auth"
+  
+  generated_explanation: |
+    🛑 **REQUEST BLOCKED**
+    
+    On January 18, 2026 at 3:12 PM EST, Guardrail blocked an AI request from 
+    John Smith (prior_auth_specialist) using chatgpt-health-prod-agent-007 
+    for prior_authorization.
+    
+    **What was blocked**:
+    AI agent requested access to complete 50-year medical history for patient MRN 987654.
+    
+    **Why it was blocked**:
+    Complete medical history exceeds minimum necessary standard for prior authorization. 
+    Agent only needed current diagnosis and relevant comorbidities.
+    
+    **Policy violations detected**:
+    1. Minimum Necessary Violation (HIPAA § 164.502(b))
+       - Requested: Complete medical history (145 data elements)
+       - Permitted: Primary diagnosis, relevant comorbidities, current medications (max 10 elements)
+    
+    2. Scope Creep Detection
+       - Prior auth for single medication does not justify full chart access
+    
+    **What the user should do**:
+    Refine the AI request to specify only:
+    - Primary diagnosis (ICD-10 code)
+    - Current medications (for interaction check)
+    - Relevant allergies
+    
+    Contact IT Help Desk for assistance: x5555
+    
+    **Incident tracking**:
+    - Compliance officer notified: Yes
+    - Incident ID: INC-2026-01-18-003
+    - Follow-up required: None (training reminder sent)
+    
+    **Audit trail**: Decision ID 550e8400-e29b-41d4-a716-446655440001
+
+example_require_approval:
+  scenario: "High-cost experimental treatment"
+  
+  generated_explanation: |
+    ⏸️ **REQUEST REQUIRES HUMAN APPROVAL**
+    
+    On January 18, 2026 at 4:23 PM EST, Guardrail flagged an AI request from 
+    Dr. Michael Rodriguez (oncologist) using claude-healthcare-instance-42 
+    for prior_authorization as requiring human review.
+    
+    **What requires approval**:
+    Prior authorization for CAR-T cell therapy (estimated cost: $475,000)
+    
+    **Why approval is required**:
+    1. High-value treatment (>$10,000 threshold)
+    2. Experimental/investigational therapy flag
+    3. Risk tier escalated to HIGH
+    
+    **Who must approve**:
+    - Required reviewer role: medical_director
+    - Response deadline: 60 minutes
+    - If timeout: Request automatically blocked for additional review
+    
+    **Current status**:
+    ⏳ Awaiting review from medical_director
+    Escalated to: Dr. Jennifer Williams (Chief Medical Officer)
+    Notification sent at: 4:23 PM EST
+    
+    **Risk factors triggering review**:
+    - Treatment cost: $475,000 (High-value threshold: $10,000)
+    - Experimental therapy: CAR-T not on standard formulary
+    - Patient comorbidities: Requires careful review
+    
+    **Audit trail**: Decision ID 550e8400-e29b-41d4-a716-446655440002
+
+# EXPORT FORMATS
+# ---------------
+
+export_formats:
+  
+  pdf_formal_record:
+    purpose: "Legal documentation, compliance filing, audit response"
+    includes:
+      - "Full explanation text"
+      - "Policy document reference"
+      - "Complete audit trail"
+      - "Digital signature"
+      - "Watermark: 'Official Guardrail Decision Record'"
+  
+  csv_bulk_export:
+    purpose: "Compliance reports, trend analysis"
+    columns:
+      - "Decision ID"
+      - "Timestamp"
+      - "User ID"
+      - "Workflow Type"
+      - "Decision"
+      - "Risk Tier"
+      - "Summary Explanation"
+      - "Policy ID"
+  
+  email_notification:
+    purpose: "Stakeholder alerts"
+    format: "HTML with embedded summary + link to full explanation"
+  
+  dashboard_widget:
+    purpose: "Real-time compliance monitoring"
+    format: "Summary cards with drill-down to full explanation"
+
+# INTEGRATION WITH DECISION OBJECT
+# ---------------------------------
+
+decision_object_mapping:
+  field: "explanation"
+  required: true
+  includes:
+    summary: "One-sentence explanation"
+    full_narrative: "Complete human-readable explanation"
+    audience_specific_versions:
+      - compliance_officer
+      - auditor_ocr
+      - physician_end_user
+      - patient_facing
+
+# BENEFITS
+# --------
+#
+# With explainability built in:
+# 1. Compliance officers can copy/paste explanations into audit responses
+# 2. OCR investigations get narrative documentation, not just JSON logs
+# 3. Users understand why requests were blocked and how to fix them
+# 4. Patients can understand how AI used their information
+# 5. Legal teams have defensible documentation for litigation
+
+# IMPLEMENTATION NOTES
+# --------------------
+#
+# 1. Explanation generation happens AFTER decision is made
+# 2. Multiple formats generated simultaneously (no re-processing)
+# 3. Explanations are part of audit trail (same retention period)
+# 4. Natural language explanations are deterministic (same input = same output)
+# 5. Template customization supported for organizational voice/branding

@@ -1,0 +1,269 @@
+# Guardrail Healthcare - PHI Data Classification Tags
+# Maps PHI fields to regulatory categories and sensitivity levels
+# Version 1.0 | January 2026
+
+---
+# PHI FIELD TAXONOMY
+#
+# Every PHI field in healthcare policies maps to:
+# - Regulatory protection level
+# - Sensitivity tier
+# - Minimum necessary default
+# - Special handling requirements
+
+phi_classifications:
+  
+  # IDENTIFIERS (Direct & Indirect)
+  identifiers:
+    direct:
+      - field: "full_name"
+        sensitivity: "HIGH"
+        regulatory: "HIPAA_Direct_Identifier"
+        default_access: "BLOCK"
+        exception_process: "explicit_justification_required"
+      
+      - field: "social_security_number"
+        sensitivity: "CRITICAL"
+        regulatory: "HIPAA_Direct_Identifier_PII"
+        default_access: "NEVER"
+        exception_process: "none"
+      
+      - field: "medical_record_number"
+        sensitivity: "HIGH"
+        regulatory: "HIPAA_Direct_Identifier"
+        default_access: "CONDITIONAL"
+        allow_if: "required_for_system_API"
+        redact_in_logs: true
+      
+      - field: "date_of_birth"
+        sensitivity: "MEDIUM"
+        regulatory: "HIPAA_Direct_Identifier"
+        default_access: "CONDITIONAL"
+        alternative: "use_age_instead"
+      
+      - field: "full_address"
+        sensitivity: "MEDIUM"
+        regulatory: "HIPAA_Direct_Identifier"
+        default_access: "BLOCK"
+        alternative: "use_state_or_zip_code"
+    
+    indirect:
+      - field: "age"
+        sensitivity: "LOW"
+        regulatory: "HIPAA_De_Identification_Safe"
+        default_access: "ALLOW"
+      
+      - field: "state_of_residence"
+        sensitivity: "LOW"
+        regulatory: "HIPAA_De_Identification_Safe"
+        default_access: "ALLOW"
+      
+      - field: "patient_token_hashed"
+        sensitivity: "LOW"
+        regulatory: "De_Identified"
+        default_access: "ALLOW"
+        note: "Cryptographically hashed patient identifier"
+  
+  # CLINICAL DATA
+  clinical:
+    diagnoses:
+      - field: "primary_diagnosis"
+        sensitivity: "MEDIUM"
+        regulatory: "HIPAA_PHI"
+        default_access: "CONDITIONAL"
+        minimum_necessary: "typically_required_for_workflows"
+      
+      - field: "secondary_diagnoses"
+        sensitivity: "MEDIUM"
+        regulatory: "HIPAA_PHI"
+        default_access: "CONDITIONAL"
+        minimum_necessary: "only_if_relevant_to_request"
+      
+      - field: "complete_problem_list"
+        sensitivity: "HIGH"
+        regulatory: "HIPAA_PHI"
+        default_access: "BLOCK"
+        reason: "Exceeds minimum necessary for most workflows"
+    
+    medications:
+      - field: "current_active_medications"
+        sensitivity: "MEDIUM"
+        regulatory: "HIPAA_PHI"
+        default_access: "CONDITIONAL"
+        minimum_necessary: "required_for_interaction_checking"
+      
+      - field: "historical_medications"
+        sensitivity: "MEDIUM"
+        regulatory: "HIPAA_PHI"
+        default_access: "BLOCK"
+        reason: "Rarely necessary for current decisions"
+    
+    labs_imaging:
+      - field: "recent_lab_results"
+        sensitivity: "MEDIUM"
+        regulatory: "HIPAA_PHI"
+        default_access: "CONDITIONAL"
+        time_scope: "last_90_days"
+        minimum_necessary: "only_labs_relevant_to_treatment"
+      
+      - field: "complete_lab_history"
+        sensitivity: "HIGH"
+        regulatory: "HIPAA_PHI"
+        default_access: "BLOCK"
+        reason: "Exceeds minimum necessary"
+  
+  # PROTECTED CATEGORIES (Heightened Sensitivity)
+  protected_categories:
+    mental_health:
+      - field: "mental_health_diagnoses"
+        sensitivity: "HIGH"
+        regulatory: "HIPAA_PHI_State_Law_Enhanced"
+        default_access: "BLOCK"
+        exception_process: "privacy_officer_approval"
+        state_variations: true
+        notes: "Many states have additional protections beyond HIPAA"
+      
+      - field: "psychotherapy_notes"
+        sensitivity: "CRITICAL"
+        regulatory: "HIPAA_45_CFR_164.501_Special_Protection"
+        default_access: "NEVER"
+        exception_process: "none"
+        notes: "Psychotherapy notes have heightened HIPAA protections, separate from general mental health records"
+    
+    substance_use:
+      - field: "substance_use_disorder_program_records"
+        sensitivity: "CRITICAL"
+        regulatory: "42_CFR_Part_2"
+        default_access: "NEVER"
+        exception_process: "patient_consent_AND_program_approval"
+        scope: "Only federally-assisted SUD treatment programs"
+        consent_requirements: "Written patient consent + program authorization"
+        notes: "42 CFR Part 2 is MORE restrictive than HIPAA"
+      
+      - field: "general_substance_use_history"
+        sensitivity: "HIGH"
+        regulatory: "HIPAA_PHI"
+        default_access: "BLOCK"
+        exception_process: "privacy_officer_approval"
+        notes: "Non-Part-2 substance use records still highly sensitive under HIPAA"
+    
+    hiv_status:
+      - field: "hiv_test_results"
+        sensitivity: "CRITICAL"
+        regulatory: "State_HIV_Privacy_Laws"
+        default_access: "NEVER"
+        exception_process: "privacy_officer_approval_AND_state_law_check"
+        state_variations: true
+        notes: "Many states (CA, NY, FL, etc.) have HIV-specific confidentiality laws"
+    
+    genetic:
+      - field: "genetic_test_results"
+        sensitivity: "CRITICAL"
+        regulatory: "GINA_HIPAA"
+        default_access: "BLOCK"
+        exception_process: "medical_director_approval"
+        notes: "GINA (Genetic Information Nondiscrimination Act) provides additional protections"
+    
+    reproductive:
+      - field: "pregnancy_status"
+        sensitivity: "HIGH"
+        regulatory: "HIPAA_PHI"
+        default_access: "CONDITIONAL"
+        allow_if: "medication_pregnancy_category_check"
+      
+      - field: "reproductive_history"
+        sensitivity: "HIGH"
+        regulatory: "HIPAA_PHI"
+        default_access: "BLOCK"
+        exception_process: "clinical_necessity_documented"
+
+# RISK SCORING
+#
+# Aggregate risk score based on data requested
+
+risk_scoring_matrix:
+  
+  # Base risk by data category
+  base_risk:
+    identifiers_direct: 20
+    identifiers_indirect: 5
+    clinical_standard: 10
+    protected_categories_mental_health: 40
+    protected_categories_substance_use: 50
+    protected_categories_hiv: 50
+    protected_categories_genetic: 40
+    protected_categories_reproductive: 30
+  
+  # Modifiers
+  modifiers:
+    multiple_protected_categories: 1.5  # Multiply risk if accessing 2+ protected categories
+    after_hours_access: 1.3
+    vip_patient: 1.4
+    sealed_record: 2.0
+    bulk_request: 1.5  # Requesting >10 patient records
+  
+  # Risk tier thresholds
+  tier_thresholds:
+    low: [0, 25]
+    medium: [26, 60]
+    high: [61, 100]
+    critical: [101, 999]
+  
+  # Example calculation:
+  # Request: mental_health_diagnoses (40) + hiv_status (50) + vip_patient (1.4x)
+  # Score: (40 + 50) * 1.4 = 126 → CRITICAL tier
+
+# COMPLIANCE TAG MAPPING
+#
+# Maps PHI fields to applicable regulations
+
+compliance_tags:
+  HIPAA_minimum_necessary:
+    applies_to: "all_phi_fields"
+    requirement: "Limit access to minimum needed for stated purpose"
+  
+  HIPAA_45_CFR_164.501:
+    applies_to:
+      - "psychotherapy_notes"
+    requirement: "Psychotherapy notes excluded from most HIPAA permissions"
+  
+  42_CFR_Part_2:
+    applies_to:
+      - "substance_use_disorder_program_records"
+    requirement: "Federal regulations for SUD program records (more restrictive than HIPAA)"
+  
+  GINA:
+    applies_to:
+      - "genetic_test_results"
+      - "family_genetic_history"
+    requirement: "Genetic Information Nondiscrimination Act protections"
+  
+  State_HIV_Laws:
+    applies_to:
+      - "hiv_test_results"
+      - "hiv_diagnosis"
+    requirement: "State-specific HIV confidentiality requirements"
+    states_with_enhanced_laws:
+      - "CA"  # California Health & Safety Code
+      - "NY"  # NY Public Health Law
+      - "FL"  # Florida Statutes 381.004
+      - "IL"  # Illinois AIDS Confidentiality Act
+      # ... additional states
+  
+  CA_CMIA:
+    applies_to: "all_phi_fields_if_patient_in_CA"
+    requirement: "California Confidentiality of Medical Information Act"
+  
+  CCPA:
+    applies_to: "consumer_health_data_in_patient_apps"
+    requirement: "California Consumer Privacy Act (if not HIPAA-covered entity)"
+
+# USAGE IN POLICIES
+#
+# Policies reference these tags:
+#
+# Example:
+#   prohibited_data:
+#     - field_tag: "protected_categories.mental_health.mental_health_diagnoses"
+#       classification: "HIGH_sensitivity_HIPAA_PHI_State_Law_Enhanced"
+#       default_access: "BLOCK"
