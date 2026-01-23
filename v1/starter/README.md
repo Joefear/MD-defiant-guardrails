@@ -12,10 +12,10 @@
 A **production-ready policy pack** that lets healthcare organizations safely deploy AI for prior authorization while maintaining HIPAA compliance.
 
 **In this folder:**
-- ✅ Prior authorization policy (YAML)
-- ✅ Sample decision outputs (ALLOW, BLOCK, REQUIRE_APPROVAL)
-- ✅ 5-minute integration guide
-- ✅ Test scenarios you can run immediately
+-  Prior authorization policy (YAML)
+-  Sample decision outputs (ALLOW, BLOCK, REQUIRE_APPROVAL)
+-  5-minute integration guide
+-  Test scenarios you can run immediately
 
 **Not included (but available):**
 - Full Guardrail platform installation
@@ -28,10 +28,10 @@ A **production-ready policy pack** that lets healthcare organizations safely dep
 
 **Healthcare organizations want to deploy AI for prior authorization**, but face a critical gap:
 
-❌ **Claude/ChatGPT can access complete patient charts**  
-❌ **No enforcement of "minimum necessary" PHI access**  
-❌ **No independent audit trail**  
-❌ **Can't prove HIPAA compliance to auditors**
+ **Claude/ChatGPT can access complete patient charts**  
+ **No enforcement of "minimum necessary" PHI access**  
+ **No independent audit trail**  
+ **Can't prove HIPAA compliance to auditors**
 
 **Guardrail fixes this** by sitting between the AI and your EHR/claims systems, enforcing policy before any PHI is released.
 
@@ -52,13 +52,13 @@ A **production-ready policy pack** that lets healthcare organizations safely dep
          │
          ▼
 ┌─────────────────────────────────────────────────┐
-│         🛡️ GUARDRAIL POLICY ENGINE 🛡️            │
-│                                                  │
-│  ❌ BLOCKS: Complete medical history             │
-│  ✅ ALLOWS: Current diagnosis, requested drug   │
-│  ⏸️ REQUIRES APPROVAL: If experimental/$10K+    │
-│                                                  │
-│  Logs: WHO accessed WHAT for WHAT PURPOSE      │
+│          GUARDRAIL POLICY ENGINE                │
+│                                                 │
+│   BLOCKS: Complete medical history              │
+│   ALLOWS: Current diagnosis, requested drug     │
+│   REQUIRES APPROVAL: If experimental/$10K+      │
+│                                                 │
+│  Logs: WHO accessed WHAT for WHAT PURPOSE       │
 └────────┬────────────────────────────────────────┘
          │
          ▼
@@ -75,11 +75,11 @@ A **production-ready policy pack** that lets healthcare organizations safely dep
 ### 1. **Policy Enforcement**
 
 The prior_auth.yaml policy enforces:
-- ✅ **Minimum Necessary**: AI only gets diagnosis codes, not full chart
-- ✅ **Identity Chain**: Complete audit trail (user → role → agent → data)
-- ✅ **Action Control**: AI can draft, but cannot auto-submit to payers
-- ✅ **Human-in-Loop**: High-cost/experimental treatments require approval
-- ✅ **Risk-Tiered**: Stricter controls for sensitive data or high-value treatments
+-  **Minimum Necessary**: AI only gets diagnosis codes, not full chart
+-  **Identity Chain**: Complete audit trail (user → role → agent → data)
+-  **Action Control**: AI can draft, but cannot auto-submit to payers
+-  **Human-in-Loop**: High-cost/experimental treatments require approval
+-  **Risk-Tiered**: Stricter controls for sensitive data or high-value treatments
 
 ### 2. **Decision Outputs**
 
@@ -245,20 +245,20 @@ Here's what a **BLOCK** decision looks like:
 Organizations using Guardrail for prior authorization report:
 
 **Efficiency Gains:**
-- ⏱️ Prior auth time: 72 hours → 8 minutes (95% reduction)
-- 📊 Processing volume: 3x increase with same staff
-- 💰 Administrative costs: 60% reduction
+-  Prior auth time: 72 hours → 8 minutes (95% reduction)
+-  Processing volume: 3x increase with same staff
+-  Administrative costs: 60% reduction
 
 **Compliance Improvements:**
-- ✅ 100% audit-ready documentation
-- ✅ Zero unauthorized PHI disclosures
-- ✅ OCR audits passed with Guardrail evidence
-- ✅ Reduced HIPAA breach risk
+-  100% audit-ready documentation
+-  Zero unauthorized PHI disclosures
+-  OCR audits passed with Guardrail evidence
+-  Reduced HIPAA breach risk
 
 **User Satisfaction:**
-- 👨‍⚕️ Physicians: "Faster than manual, confident it's compliant"
-- 🏥 Compliance: "Finally have proof of minimum necessary enforcement"
-- 💼 IT: "Deployed in days, not months"
+- Physicians: "Faster than manual, confident it's compliant"
+-  Compliance: "Finally have proof of minimum necessary enforcement"
+-  IT: "Deployed in days, not months"
 
 ---
 
