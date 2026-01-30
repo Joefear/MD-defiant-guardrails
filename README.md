@@ -18,9 +18,9 @@ GDF is designed to support:
 GDF is designed to support:
 
 - **Auditability and traceability** for AI-enabled systems in enterprise and regulated environments
-- 
+
 - **Interoperability** across vendors, models, and governance platforms
-- 
+  
 - **Policy-based authorization workflows** upstream of safety and execution systems  
 
 GDF does not define policy authoring languages, functional safety systems, or compliance certification methods. It provides a standardized record format that organizations can use as part of their broader governance, risk management, and compliance programs.
