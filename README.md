@@ -9,7 +9,7 @@ Which policy snapshot was applied at the time of the decision
 
 What the decision outcome was (allow, deny, escalate, modify)
 
-What cryptographic evidence (hashes) supports the decision without requiring sensitive raw data by default
+What cryptographic evidence (hashes) supports the decision, without requiring sensitive raw data by default
 
 How related decisions are linked across systems and modalities within a single trace
 
